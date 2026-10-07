@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex" />
+    <title>Offline · Mirna Admin</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #fdf9f4;
+        --fg: #1c1b1b;
+        --muted: #6b6560;
+        --primary: #1c1b1b;
+        --primary-fg: #ffffff;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #141312;
+          --fg: #f3efe9;
+          --muted: #aaa39b;
+          --primary: #f3efe9;
+          --primary-fg: #141312;
+        }
+      }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: max(1.5rem, env(safe-area-inset-top)) 1.5rem
+          max(1.5rem, env(safe-area-inset-bottom));
+        box-sizing: border-box;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        text-align: center;
+      }
+      main {
+        display: grid;
+        gap: 1.5rem;
+        max-width: 28rem;
+      }
+      h1,
+      .h {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin: 0;
+      }
+      p {
+        color: var(--muted);
+        margin: 0.5rem 0 0;
+      }
+      button {
+        justify-self: center;
+        height: 2.5rem;
+        padding: 0 1rem;
+        border: 0;
+        border-radius: 0;
+        background: var(--primary);
+        color: var(--primary-fg);
+        font: inherit;
+        font-weight: 500;
+        cursor: pointer;
+      }
+      button:focus-visible {
+        outline: 2px solid var(--primary);
+        outline-offset: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div>
+        <h1>You're offline</h1>
+        <p>Mirna Admin needs a connection to load your data.</p>
+      </div>
+      <div lang="ar" dir="rtl">
+        <p class="h" style="color: var(--fg); margin: 0">أنت غير متصل بالإنترنت</p>
+        <p>تحتاج لوحة إدارة ميرنا إلى اتصال لتحميل بياناتك.</p>
+      </div>
+      <button type="button" onclick="location.reload()">Try again · إعادة المحاولة</button>
+    </main>
+  </body>
+</html>
