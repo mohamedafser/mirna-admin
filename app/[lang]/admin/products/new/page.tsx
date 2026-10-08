@@ -6,10 +6,11 @@ import { ProductForm } from "@/components/catalogue/product-form";
 import { buttonClassName } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState, PageSkeleton } from "@/components/ui/states";
-import { activeRegion, supportedCurrencies } from "@/config/region";
+import { supportedCurrencies } from "@/config/region";
 import { requireAdmin } from "@/lib/auth/dal";
 import { listCategoryOptions } from "@/lib/catalogue/queries";
 import { getLocale, getMessages } from "@/lib/i18n/server";
+import { getStoreRegion } from "@/lib/settings/queries";
 
 export async function generateMetadata(): Promise<Metadata> {
   const messages = await getMessages();
@@ -28,7 +29,7 @@ export default async function NewProductPage() {
 async function NewProduct() {
   const [locale, messages] = await Promise.all([getLocale(), getMessages()]);
   await requireAdmin(locale);
-  const categories = await listCategoryOptions();
+  const [categories, region] = await Promise.all([listCategoryOptions(), getStoreRegion()]);
   const p = messages.catalogue.products;
   const hasActiveCategory = categories.some((category) => category.isActive);
 
@@ -49,8 +50,8 @@ async function NewProduct() {
       {hasActiveCategory ? (
         <ProductForm
           categories={categories}
-          currencies={supportedCurrencies}
-          defaultCurrency={activeRegion.currencyCode}
+          currencies={[...new Set([region.currencyCode, ...supportedCurrencies])]}
+          defaultCurrency={region.currencyCode}
         />
       ) : (
         <Card>

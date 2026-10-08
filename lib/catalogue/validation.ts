@@ -2,7 +2,8 @@
 // Server Actions (authoritative). The database constraints (migrations 004–006)
 // remain the final protection.
 
-import { supportedCurrencies } from "@/config/region";
+import { parseWholeNumber } from "@/lib/inventory/rules";
+import { isCurrencyCode } from "@/lib/settings/rules";
 import { parseMoney, type MoneyError } from "@/lib/money";
 import { SLUG_MAX_LENGTH, SLUG_PATTERN } from "./slug";
 
@@ -33,6 +34,11 @@ export type CatalogueFieldError =
   | "sortOrderInvalid"
   | "currencyInvalid"
   | "compareAtNotHigher"
+  | "stockRequired"
+  | "stockInvalid"
+  | "stockBelowReserved"
+  | "thresholdRequired"
+  | "thresholdInvalid"
   | "imageType"
   | "imageSize"
   | "imageEmpty"
@@ -113,6 +119,9 @@ export interface ProductInput {
   compareAtPrice: string;
   currencyCode: string;
   isActive: boolean;
+  /** Units on hand (whole number). Saved through adjust_inventory(). */
+  stock: string;
+  lowStockThreshold: string;
 }
 
 export type ProductFieldErrors = Partial<Record<keyof ProductInput, CatalogueFieldError>>;
@@ -129,10 +138,16 @@ export function readProduct(data: FormData): ProductInput {
     compareAtPrice: text(data, "compareAtPrice"),
     currencyCode: text(data, "currencyCode"),
     isActive: data.get("isActive") === "on",
+    stock: text(data, "stock"),
+    lowStockThreshold: text(data, "lowStockThreshold"),
   };
 }
 
-export function validateProduct(input: ProductInput): ProductFieldErrors {
+/**
+ * `reserved` is the product's reserved quantity when known (edit form); stock
+ * can't go below it. The database re-checks it inside adjust_inventory().
+ */
+export function validateProduct(input: ProductInput, reserved = 0): ProductFieldErrors {
   const errors: ProductFieldErrors = {};
   errors.name = validateName(input.name);
   errors.slug = validateSlug(input.slug);
@@ -150,7 +165,16 @@ export function validateProduct(input: ProductInput): ProductFieldErrors {
     errors.description = "descriptionTooLong";
   }
 
-  if (!supportedCurrencies.includes(input.currencyCode)) {
+  const stock = parseWholeNumber(input.stock);
+  if (!input.stock) errors.stock = "stockRequired";
+  else if (stock === null) errors.stock = "stockInvalid";
+  else if (stock < reserved) errors.stock = "stockBelowReserved";
+  if (!input.lowStockThreshold) errors.lowStockThreshold = "thresholdRequired";
+  else if (parseWholeNumber(input.lowStockThreshold) === null) {
+    errors.lowStockThreshold = "thresholdInvalid";
+  }
+
+  if (!isCurrencyCode(input.currencyCode)) {
     errors.currencyCode = "currencyInvalid";
     return compact(errors);
   }

@@ -47,8 +47,8 @@ export const viewport: Viewport = {
   viewportFit: "cover", // enables env(safe-area-inset-*)
   // Matches --background in globals.css.
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fdf9f4" },
-    { media: "(prefers-color-scheme: dark)", color: "#141312" },
+    { media: "(prefers-color-scheme: light)", color: "#faf7f3" },
+    { media: "(prefers-color-scheme: dark)", color: "#170d0e" },
   ],
 };
 
@@ -65,7 +65,8 @@ export default async function RootLayout({ children }: LayoutProps<"/[lang]">) {
       suppressHydrationWarning
     >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeInitScript + sidebarInitScript }} />
+        {/* ";" between the two IIFEs: without it the second is called on the first's result. */}
+        <script dangerouslySetInnerHTML={{ __html: `${themeInitScript};${sidebarInitScript}` }} />
       </head>
       {/* Browser extensions (e.g. ColorZilla's cz-shortcut-listen) add body attributes. */}
       <body className="min-h-dvh" suppressHydrationWarning>

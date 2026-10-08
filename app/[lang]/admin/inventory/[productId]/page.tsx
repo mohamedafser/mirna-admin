@@ -18,6 +18,7 @@ import { isUuid } from "@/lib/catalogue/validation";
 import { getInventoryItem, listAdjustments, type AdjustmentRow } from "@/lib/inventory/queries";
 import { formatDateTime } from "@/lib/format";
 import { getLocale, getMessages } from "@/lib/i18n/server";
+import { getStoreRegion } from "@/lib/settings/queries";
 import { cn } from "@/lib/utils/cn";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -44,6 +45,7 @@ async function InventoryItem({
 }: Pick<PageProps<"/[lang]/admin/inventory/[productId]">, "params" | "searchParams">) {
   const [locale, messages] = await Promise.all([getLocale(), getMessages()]);
   await requireAdmin(locale);
+  const { timezone: timeZone } = await getStoreRegion();
   const { productId } = await params;
   if (!isUuid(productId)) notFound();
   const pageParam = Number.parseInt(String((await searchParams).page ?? ""), 10);
@@ -59,7 +61,7 @@ async function InventoryItem({
   const h = t.history;
   const basePath = `/${locale}/admin/inventory/${productId}`;
   const configured = item.inventory_id !== null;
-  const dateTime = (value: string) => formatDateTime(value, locale);
+  const dateTime = (value: string) => formatDateTime(value, locale, undefined, timeZone);
   const signed = (value: number) => (value > 0 ? `+${value}` : String(value));
   const admin = (row: AdjustmentRow) => row.admin?.full_name ?? h.unknownAdmin;
 

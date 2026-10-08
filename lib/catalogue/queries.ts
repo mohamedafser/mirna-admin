@@ -55,6 +55,8 @@ export type ProductListRow = Pick<
 > & {
   category: { id: string; name: string } | null;
   image: Pick<ProductImage, "public_url" | "alt_text"> | null;
+  /** null when the product has no inventory row yet ("Not configured"). */
+  inventory: { quantity: number; reserved_quantity: number; low_stock_threshold: number } | null;
 };
 
 export type ProductDetail = Product & {
@@ -161,7 +163,8 @@ export async function listProducts(params: ListParams): Promise<Page<ProductList
     .select(
       `id, name, sku, slug, price, compare_at_price, currency_code, is_active, updated_at,
        category:categories(id, name),
-       images:product_images(public_url, alt_text)`,
+       images:product_images(public_url, alt_text),
+       inventory(quantity, reserved_quantity, low_stock_threshold)`,
       { count: "exact" },
     )
     // Only the primary image is embedded (thumbnail column).

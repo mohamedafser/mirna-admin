@@ -11,6 +11,8 @@ export const ALT_TEXT_MAX_LENGTH = 300;
 
 export const PRODUCT_IMAGES_BUCKET = "product-images";
 export const CATEGORY_IMAGES_BUCKET = "category-images";
+/** Store logo (migration 020). */
+export const STORE_ASSETS_BUCKET = "store-assets";
 
 export type ImageFileError = "imageType" | "imageSize" | "imageEmpty";
 

@@ -15,10 +15,12 @@ import { PageSkeleton } from "@/components/ui/states";
 import { supportedCurrencies } from "@/config/region";
 import { requireAdmin } from "@/lib/auth/dal";
 import { getProduct, listCategoryOptions, type ProductDetail } from "@/lib/catalogue/queries";
+import { getInventoryItem, type InventoryRow } from "@/lib/inventory/queries";
 import { isUuid } from "@/lib/catalogue/validation";
 import { formatDateTime } from "@/lib/format";
 import { format } from "@/lib/i18n/messages";
 import { getLocale, getMessages } from "@/lib/i18n/server";
+import { getStoreRegion } from "@/lib/settings/queries";
 
 export async function generateMetadata(): Promise<Metadata> {
   const messages = await getMessages();
@@ -35,7 +37,7 @@ export default async function ProductPage({ params }: PageProps<"/[lang]/admin/p
 }
 
 /** Only the fields the form edits are sent to the client. */
-function editableProduct(product: ProductDetail): EditableProduct {
+function editableProduct(product: ProductDetail, stock: InventoryRow | null): EditableProduct {
   const { id, name, slug, sku, category_id, short_description, description } = product;
   const { price, compare_at_price, currency_code, is_active, updated_at } = product;
   return {
@@ -51,30 +53,45 @@ function editableProduct(product: ProductDetail): EditableProduct {
     currency_code,
     is_active,
     updated_at,
+    inventory:
+      stock?.inventory_id && stock.updated_at
+        ? {
+            quantity: stock.quantity ?? 0,
+            reserved: stock.reserved_quantity ?? 0,
+            threshold: stock.low_stock_threshold ?? 0,
+            updatedAt: stock.updated_at,
+          }
+        : null,
   };
 }
 
 /**
  * Read + edit in one place: a compact header (primary image, status, dates,
  * activate/deactivate), the edit form (always loaded fresh) and the image
- * gallery beside it. One product query (with category and images) and one
- * category-options query per request.
+ * gallery beside it. One product query (with category and images), one
+ * inventory query and one category-options query per request.
  */
 async function ProductDetailView({
   params,
 }: Pick<PageProps<"/[lang]/admin/products/[id]">, "params">) {
   const [locale, messages] = await Promise.all([getLocale(), getMessages()]);
   await requireAdmin(locale);
+  const region = await getStoreRegion();
+  const timeZone = region.timezone;
   const { id } = await params;
   if (!isUuid(id)) notFound();
 
-  const [product, categories] = await Promise.all([getProduct(id), listCategoryOptions()]);
+  const [product, categories, stock] = await Promise.all([
+    getProduct(id),
+    listCategoryOptions(),
+    getInventoryItem(id),
+  ]);
   if (!product) notFound();
 
   const t = messages.catalogue;
   const p = t.products;
   const primary = product.images.find((image) => image.is_primary) ?? product.images[0] ?? null;
-  const dateTime = (value: string) => formatDateTime(value, locale);
+  const dateTime = (value: string) => formatDateTime(value, locale, undefined, timeZone);
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -130,9 +147,11 @@ async function ProductDetailView({
       </div>
 
       <ProductForm
-        product={editableProduct(product)}
+        product={editableProduct(product, stock)}
         categories={categories}
-        currencies={supportedCurrencies}
+        currencies={[
+          ...new Set([product.currency_code, region.currencyCode, ...supportedCurrencies]),
+        ]}
         defaultCurrency={product.currency_code}
         aside={
           <Panel title={p.sections.images}>
