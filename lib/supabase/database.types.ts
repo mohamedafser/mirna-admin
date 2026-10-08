@@ -277,6 +277,7 @@ export type Database = {
       orders: {
         Row: {
           billing_address_snapshot: Json | null;
+          checkout_key: string | null;
           created_at: string;
           currency_code: string;
           discount: number;
@@ -293,6 +294,7 @@ export type Database = {
         };
         Insert: {
           billing_address_snapshot?: Json | null;
+          checkout_key?: string | null;
           created_at?: string;
           currency_code: string;
           discount?: number;
@@ -309,6 +311,7 @@ export type Database = {
         };
         Update: {
           billing_address_snapshot?: Json | null;
+          checkout_key?: string | null;
           created_at?: string;
           currency_code?: string;
           discount?: number;
@@ -463,6 +466,119 @@ export type Database = {
         };
         Relationships: [];
       };
+      store_settings: {
+        Row: {
+          address_line1: string | null;
+          address_line2: string | null;
+          allow_customer_cancellation: boolean;
+          city: string | null;
+          contact_email: string | null;
+          contact_phone: string | null;
+          country_code: string;
+          currency_code: string;
+          default_locale: string;
+          delivery_max_days: number;
+          delivery_min_days: number;
+          free_shipping_threshold: number | null;
+          id: boolean;
+          logo_path: string | null;
+          logo_url: string | null;
+          max_quantity_per_item: number;
+          min_order_amount: number | null;
+          notification_email: string | null;
+          notify_low_stock: boolean;
+          notify_new_order: boolean;
+          notify_order_cancelled: boolean;
+          postal_code: string | null;
+          prices_include_tax: boolean;
+          shipping_fee: number;
+          state_region: string | null;
+          store_name: string;
+          tax_enabled: boolean;
+          tax_rate: number;
+          tax_registration_number: string | null;
+          timezone: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          address_line1?: string | null;
+          address_line2?: string | null;
+          allow_customer_cancellation?: boolean;
+          city?: string | null;
+          contact_email?: string | null;
+          contact_phone?: string | null;
+          country_code: string;
+          currency_code: string;
+          default_locale: string;
+          delivery_max_days?: number;
+          delivery_min_days?: number;
+          free_shipping_threshold?: number | null;
+          id?: boolean;
+          logo_path?: string | null;
+          logo_url?: string | null;
+          max_quantity_per_item?: number;
+          min_order_amount?: number | null;
+          notification_email?: string | null;
+          notify_low_stock?: boolean;
+          notify_new_order?: boolean;
+          notify_order_cancelled?: boolean;
+          postal_code?: string | null;
+          prices_include_tax?: boolean;
+          shipping_fee?: number;
+          state_region?: string | null;
+          store_name: string;
+          tax_enabled?: boolean;
+          tax_rate?: number;
+          tax_registration_number?: string | null;
+          timezone: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          address_line1?: string | null;
+          address_line2?: string | null;
+          allow_customer_cancellation?: boolean;
+          city?: string | null;
+          contact_email?: string | null;
+          contact_phone?: string | null;
+          country_code?: string;
+          currency_code?: string;
+          default_locale?: string;
+          delivery_max_days?: number;
+          delivery_min_days?: number;
+          free_shipping_threshold?: number | null;
+          id?: boolean;
+          logo_path?: string | null;
+          logo_url?: string | null;
+          max_quantity_per_item?: number;
+          min_order_amount?: number | null;
+          notification_email?: string | null;
+          notify_low_stock?: boolean;
+          notify_new_order?: boolean;
+          notify_order_cancelled?: boolean;
+          postal_code?: string | null;
+          prices_include_tax?: boolean;
+          shipping_fee?: number;
+          state_region?: string | null;
+          store_name?: string;
+          tax_enabled?: boolean;
+          tax_rate?: number;
+          tax_registration_number?: string | null;
+          timezone?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "store_settings_updated_by_fkey";
+            columns: ["updated_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: {
       inventory_overview: {
@@ -486,6 +602,19 @@ export type Database = {
       };
     };
     Functions: {
+      admin_get_customer: {
+        Args: { p_id: string };
+        Returns: Json;
+      };
+      admin_list_customers: {
+        Args: {
+          p_search?: string | null;
+          p_status?: string | null;
+          p_limit?: number;
+          p_offset?: number;
+        };
+        Returns: Json;
+      };
       adjust_inventory: {
         Args: {
           p_product_id: string;

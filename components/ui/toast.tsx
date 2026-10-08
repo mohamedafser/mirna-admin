@@ -8,8 +8,8 @@ import { cn } from "@/lib/utils/cn";
 /**
  * Minimal toast notifications (the app's only toast system). Messages are
  * announced through a polite live region and dismiss themselves after a few
- * seconds; errors stay until closed. Bottom-center on phones, bottom
- * inline-end on larger screens (mirrors in RTL).
+ * seconds; errors stay until closed. Top-center on phones, top inline-end
+ * (top right; top left in RTL) on larger screens. Newest is on top.
  */
 
 type Tone = "success" | "error" | "warning";
@@ -52,7 +52,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       <div
         role="status"
         aria-live="polite"
-        className="pointer-events-none fixed inset-x-0 bottom-0 z-[60] flex flex-col items-center gap-2 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:items-end sm:px-6"
+        className="pointer-events-none fixed inset-x-0 top-0 z-[60] flex flex-col-reverse items-center gap-2 p-4 pt-[calc(1rem+env(safe-area-inset-top))] sm:items-end sm:px-6"
       >
         {toasts.map((toast) => {
           const { icon: Icon, className } = tones[toast.tone];

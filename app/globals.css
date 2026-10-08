@@ -4,8 +4,8 @@
  * Semantic design tokens. Components use these (bg-background, text-primary,
  * border-border, …) — never raw hex values — so the palette can change here.
  *
- * Monochrome cream / near-black palette shared with mirna-storefront (keep the
- * two in sync).
+ * Brand palette shared with mirna-storefront (keep the two in sync): oxblood
+ * #291113 (primary) and greige #dbd2c7 (secondary).
  *
  * Theme resolution:
  *   <html data-theme="light">  → light
@@ -14,25 +14,25 @@
  */
 :root {
   color-scheme: light;
-  --background: #fdf9f4;
-  --foreground: #1c1b1b;
+  --background: #faf7f3;
+  --foreground: #291113;
   --card: #ffffff;
-  --card-foreground: #1c1b1b;
+  --card-foreground: #291113;
   --popover: #ffffff;
-  --popover-foreground: #1c1b1b;
-  --primary: #1c1b1b;
-  --primary-foreground: #ffffff;
-  --secondary: #f3eee7;
-  --secondary-foreground: #1c1b1b;
-  --muted: #f1ebe3;
-  --muted-foreground: #6b6560;
-  --accent: #f3eee7;
-  --accent-foreground: #1c1b1b;
-  --brand-soft: #ebe7e3;
-  --brand-soft-foreground: #1c1b1b;
-  --border: #e6dfd5;
-  --input: #9b948c;
-  --ring: #1c1b1b;
+  --popover-foreground: #291113;
+  --primary: #291113;
+  --primary-foreground: #faf7f3;
+  --secondary: #dbd2c7;
+  --secondary-foreground: #291113;
+  --muted: #f2ece5;
+  --muted-foreground: #655754;
+  --accent: #ebe4dc;
+  --accent-foreground: #291113;
+  --brand-soft: #dbd2c7;
+  --brand-soft-foreground: #291113;
+  --border: #e4dbd1;
+  --input: #958680;
+  --ring: #291113;
   --success: #15803d;
   --success-foreground: #ffffff;
   --warning: #a16207;
@@ -44,25 +44,25 @@
 /* Dark values are listed twice: once for the explicit choice, once for "system". */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --background: #141312;
-  --foreground: #f3efe9;
-  --card: #1c1a19;
-  --card-foreground: #f3efe9;
-  --popover: #1f1d1b;
-  --popover-foreground: #f3efe9;
-  --primary: #f3efe9;
-  --primary-foreground: #141312;
-  --secondary: #24211f;
-  --secondary-foreground: #f3efe9;
-  --muted: #24211f;
-  --muted-foreground: #aaa39b;
-  --accent: #2a2724;
-  --accent-foreground: #f3efe9;
-  --brand-soft: #262321;
-  --brand-soft-foreground: #f3efe9;
-  --border: #33302c;
-  --input: #7d7670;
-  --ring: #f3efe9;
+  --background: #170d0e;
+  --foreground: #efe8e1;
+  --card: #1f1214;
+  --card-foreground: #efe8e1;
+  --popover: #231517;
+  --popover-foreground: #efe8e1;
+  --primary: #dbd2c7;
+  --primary-foreground: #291113;
+  --secondary: #3a2124;
+  --secondary-foreground: #efe8e1;
+  --muted: #26171a;
+  --muted-foreground: #ab9d96;
+  --accent: #301d20;
+  --accent-foreground: #efe8e1;
+  --brand-soft: #2e1a1c;
+  --brand-soft-foreground: #efe8e1;
+  --border: #3a2a2b;
+  --input: #85736f;
+  --ring: #dbd2c7;
   --success: #4ade80;
   --success-foreground: #052e16;
   --warning: #facc15;
@@ -74,25 +74,25 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
     color-scheme: dark;
-    --background: #141312;
-    --foreground: #f3efe9;
-    --card: #1c1a19;
-    --card-foreground: #f3efe9;
-    --popover: #1f1d1b;
-    --popover-foreground: #f3efe9;
-    --primary: #f3efe9;
-    --primary-foreground: #141312;
-    --secondary: #24211f;
-    --secondary-foreground: #f3efe9;
-    --muted: #24211f;
-    --muted-foreground: #aaa39b;
-    --accent: #2a2724;
-    --accent-foreground: #f3efe9;
-    --brand-soft: #262321;
-    --brand-soft-foreground: #f3efe9;
-    --border: #33302c;
-    --input: #7d7670;
-    --ring: #f3efe9;
+    --background: #170d0e;
+    --foreground: #efe8e1;
+    --card: #1f1214;
+    --card-foreground: #efe8e1;
+    --popover: #231517;
+    --popover-foreground: #efe8e1;
+    --primary: #dbd2c7;
+    --primary-foreground: #291113;
+    --secondary: #3a2124;
+    --secondary-foreground: #efe8e1;
+    --muted: #26171a;
+    --muted-foreground: #ab9d96;
+    --accent: #301d20;
+    --accent-foreground: #efe8e1;
+    --brand-soft: #2e1a1c;
+    --brand-soft-foreground: #efe8e1;
+    --border: #3a2a2b;
+    --input: #85736f;
+    --ring: #dbd2c7;
     --success: #4ade80;
     --success-foreground: #052e16;
     --warning: #facc15;
@@ -137,8 +137,8 @@
 
   /* As on the storefront: surfaces are flat and bordered; shadow-card is
      reserved for overlays (modal, dropdowns, sheet, toasts). */
-  --shadow-card: 0 1px 2px rgb(28 27 27 / 0.04), 0 6px 20px -8px rgb(28 27 27 / 0.08);
-  --shadow-elevated: 0 16px 40px -12px rgb(28 27 27 / 0.22);
+  --shadow-card: 0 1px 2px rgb(41 17 19 / 0.04), 0 6px 20px -8px rgb(41 17 19 / 0.08);
+  --shadow-elevated: 0 16px 40px -12px rgb(41 17 19 / 0.22);
 
   /* Square, editorial surfaces like the storefront. rounded-full is kept only
      for tiny status dots and spinners. */

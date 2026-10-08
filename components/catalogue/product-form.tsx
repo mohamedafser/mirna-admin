@@ -1,6 +1,6 @@
 "use client";
 
-import { LoaderCircle, Save } from "lucide-react";
+import { History, LoaderCircle, Save } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition, type FormEvent, type ReactNode } from "react";
@@ -8,6 +8,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button, buttonClassName } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { Field, Input, Textarea } from "@/components/ui/form";
+import { StockStatusBadge } from "@/components/inventory/stock-status-badge";
 import { useToast } from "@/components/ui/toast";
 import {
   saveProduct,
@@ -29,6 +30,7 @@ import {
 } from "@/lib/catalogue/validation";
 import { format } from "@/lib/i18n/messages";
 import { useI18n } from "@/lib/i18n/client";
+import { parseWholeNumber, stockStatus } from "@/lib/inventory/rules";
 import { currencyFractionDigits, moneyInputValue } from "@/lib/money";
 import { ImageDropzone } from "./image-dropzone";
 import { ImageGallery } from "./image-gallery";
@@ -48,7 +50,18 @@ export interface EditableProduct {
   currency_code: string;
   is_active: boolean;
   updated_at: string;
+  /** null when the product has no inventory row yet (saving creates it). */
+  inventory: {
+    quantity: number;
+    reserved: number;
+    threshold: number;
+    updatedAt: string;
+  } | null;
 }
+
+/** Product and stock are versioned separately; either change reloads the form. */
+const versionOf = (product: EditableProduct) =>
+  `${product.updated_at}|${product.inventory?.updatedAt ?? ""}`;
 
 export interface CategoryChoice {
   id: string;
@@ -87,8 +100,9 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 /**
- * Create / edit product. Inventory, orders and payments are intentionally
- * absent (later phases).
+ * Create / edit product, including its stock and low-stock threshold. Stock
+ * is saved as a "set" adjustment (stock history records it); the Inventory
+ * page offers increase/decrease with a reason.
  *
  * Images: on a new product they are chosen up front and uploaded right after
  * the product is created (Storage paths need the product id). On an existing
@@ -106,13 +120,13 @@ export function ProductForm(props: ProductFormProps) {
   const [dirty, setDirty] = useState(false);
   useUnsavedChanges(dirty);
 
-  if (product && snapshot && product.updated_at !== snapshot.updated_at && !dirty) {
+  if (product && snapshot && versionOf(product) !== versionOf(snapshot) && !dirty) {
     setSnapshot(product);
   }
 
   return (
     <ProductFormFields
-      key={snapshot?.updated_at ?? "new"}
+      key={snapshot ? versionOf(snapshot) : "new"}
       {...props}
       product={snapshot}
       dirty={dirty}
@@ -145,6 +159,10 @@ function ProductFormFields({
   const [currency, setCurrency] = useState(product?.currency_code ?? defaultCurrency);
   const [images, setImages] = useState<PendingImage[]>([]);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const loadedStock = product?.inventory?.quantity ?? 0;
+  const reserved = product?.inventory?.reserved ?? 0;
+  const [stock, setStock] = useState(String(loadedStock));
+  const [threshold, setThreshold] = useState(String(product?.inventory?.threshold ?? 0));
   const id = useId();
   const formId = `${id}-form`;
 
@@ -152,6 +170,7 @@ function ProductFormFields({
   const errorText = (code?: CatalogueFieldError) => {
     if (!code) return undefined;
     if (code === "slugTaken") return t.products.slugTaken;
+    if (code === "stockBelowReserved") return format(t.errors.stockBelowReserved, { reserved });
     if (code === "moneyTooManyDecimals") {
       return format(t.errors.moneyTooManyDecimals, { digits: currencyFractionDigits(currency) });
     }
@@ -228,7 +247,7 @@ function ProductFormFields({
     if (pending) return;
     const form = event.currentTarget;
     const data = new FormData(form);
-    const errors = validateProduct(readProduct(data));
+    const errors = validateProduct(readProduct(data), reserved);
     if (Object.keys(errors).length > 0) {
       setClientErrors(errors);
       const first = Object.keys(errors)[0];
@@ -246,11 +265,13 @@ function ProductFormFields({
         const failed = images.length > 0 ? await uploadPending(result.id) : 0;
         setDirty(false);
         if (failed > 0) toast.warning(format(t.images.createdWithImageErrors, { count: failed }));
-        else toast.success(t.products.created);
+        else if (!result.warning) toast.success(t.products.created);
+        if (result.warning) toast.warning(t.errors[result.warning]);
         router.push(`/${locale}/admin/products/${result.id}`);
       } else {
         setDirty(false);
-        toast.success(t.products.updated);
+        if (result.warning) toast.warning(t.errors[result.warning]);
+        else toast.success(t.products.updated);
       }
     });
   }
@@ -439,6 +460,65 @@ function ProductFormFields({
             <p className="-mt-2 text-xs text-muted-foreground">{f.compareAtHint}</p>
           </Section>
 
+          <Section title={t.products.sections.inventory}>
+            <input type="hidden" name="expectedStock" value={loadedStock} readOnly />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                id={`${id}-stock`}
+                label={f.stock}
+                hint={
+                  product
+                    ? reserved > 0
+                      ? format(f.stockHintReserved, { reserved })
+                      : f.stockHintEdit
+                    : f.stockHintNew
+                }
+                error={errorText(fieldErrors.stock)}
+              >
+                {(a11y) => (
+                  <Input
+                    {...a11y}
+                    name="stock"
+                    inputMode="numeric"
+                    dir="ltr"
+                    required
+                    autoComplete="off"
+                    disabled={pending}
+                    value={stock}
+                    onChange={(event) => setStock(event.target.value)}
+                  />
+                )}
+              </Field>
+              <Field
+                id={`${id}-threshold`}
+                label={f.lowStockThreshold}
+                hint={f.lowStockThresholdHint}
+                error={errorText(fieldErrors.lowStockThreshold)}
+              >
+                {(a11y) => (
+                  <Input
+                    {...a11y}
+                    name="lowStockThreshold"
+                    inputMode="numeric"
+                    dir="ltr"
+                    required
+                    autoComplete="off"
+                    disabled={pending}
+                    value={threshold}
+                    onChange={(event) => setThreshold(event.target.value)}
+                  />
+                )}
+              </Field>
+            </div>
+            <StockPreview
+              stock={stock}
+              threshold={threshold}
+              reserved={reserved}
+              loadedStock={product ? loadedStock : null}
+              historyHref={product ? `/${locale}/admin/inventory/${product.id}` : null}
+            />
+          </Section>
+
           <Section title={t.products.sections.description}>
             <Field
               id={`${id}-short`}
@@ -552,6 +632,75 @@ function ProductFormFields({
           {saveLabel}
         </Button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Reserved / available / resulting stock status for the typed values, so the
+ * admin sees the effect before saving. Nothing shows while the input is invalid.
+ */
+function StockPreview({
+  stock,
+  threshold,
+  reserved,
+  loadedStock,
+  historyHref,
+}: {
+  stock: string;
+  threshold: string;
+  reserved: number;
+  /** Stock when the form loaded (edit only). */
+  loadedStock: number | null;
+  historyHref: string | null;
+}) {
+  const { locale, messages } = useI18n();
+  const f = messages.catalogue.products.fields;
+  const inventory = messages.inventory;
+  const quantity = parseWholeNumber(stock);
+  const alert = parseWholeNumber(threshold);
+  if (quantity === null || alert === null) return null;
+
+  const number = (value: number) => value.toLocaleString(locale);
+  const status = stockStatus(quantity, reserved, alert);
+  const change = loadedStock === null ? 0 : quantity - loadedStock;
+  const stat = (label: string, value: ReactNode) => (
+    <div className="min-w-0">
+      <dt className="text-[0.6875rem] text-muted-foreground">{label}</dt>
+      <dd className="font-medium tabular-nums">{value}</dd>
+    </div>
+  );
+
+  return (
+    <div className="-mt-1 flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl bg-muted/50 px-3.5 py-3 text-sm">
+      <dl className="flex flex-wrap gap-x-6 gap-y-2">
+        {loadedStock !== null &&
+          stat(
+            f.stockCurrent,
+            <bdi dir="ltr">
+              {number(loadedStock)}
+              {change !== 0 && (
+                <span className={change > 0 ? "text-success" : "text-error"}>
+                  {" → "}
+                  {number(quantity)} ({change > 0 ? "+" : "−"}
+                  {number(Math.abs(change))})
+                </span>
+              )}
+            </bdi>,
+          )}
+        {reserved > 0 && stat(inventory.columns.reserved, number(reserved))}
+        {stat(inventory.columns.available, number(Math.max(0, quantity - reserved)))}
+      </dl>
+      <StockStatusBadge status={status} label={inventory.status[status]} />
+      {historyHref && (
+        <Link
+          href={historyHref}
+          className="ms-auto inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+        >
+          <History aria-hidden className="size-3.5" />
+          {inventory.history.title}
+        </Link>
+      )}
     </div>
   );
 }

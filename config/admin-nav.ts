@@ -69,10 +69,10 @@ export const adminSections: readonly AdminSection[] = [
     available: true,
     group: "inventory",
   },
-  { key: "orders", segment: "orders", icon: ShoppingCart, inNav: true, available: false },
-  { key: "customers", segment: "customers", icon: Users, inNav: true, available: false },
+  { key: "orders", segment: "orders", icon: ShoppingCart, inNav: true, available: true },
+  { key: "customers", segment: "customers", icon: Users, inNav: true, available: true },
   { key: "admins", segment: "admins", icon: ShieldCheck, inNav: true, available: true },
-  { key: "settings", segment: "settings", icon: Settings, inNav: true, available: false },
+  { key: "settings", segment: "settings", icon: Settings, inNav: true, available: true },
   { key: "profile", segment: "profile", icon: UserRound, inNav: false, available: false },
 ];
 

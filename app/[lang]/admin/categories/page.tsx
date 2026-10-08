@@ -15,6 +15,7 @@ import { requireAdmin } from "@/lib/auth/dal";
 import { listCategories, parseListParams, type CategoryRow } from "@/lib/catalogue/queries";
 import { formatDateTime } from "@/lib/format";
 import { getLocale, getMessages } from "@/lib/i18n/server";
+import { getStoreRegion } from "@/lib/settings/queries";
 
 export async function generateMetadata(): Promise<Metadata> {
   const messages = await getMessages();
@@ -44,6 +45,7 @@ async function Categories({
 }: Pick<PageProps<"/[lang]/admin/categories">, "searchParams">) {
   const [locale, messages] = await Promise.all([getLocale(), getMessages()]);
   await requireAdmin(locale);
+  const { timezone: timeZone } = await getStoreRegion();
   const params = parseListParams(await searchParams);
   const result = await listCategories(params);
 
@@ -62,7 +64,7 @@ async function Categories({
   const t = messages.catalogue;
   const c = t.categories;
   const filtered = Boolean(params.q) || params.status !== "all";
-  const date = (value: string) => formatDateTime(value, locale, { dateStyle: "medium" });
+  const date = (value: string) => formatDateTime(value, locale, { dateStyle: "medium" }, timeZone);
   const status = (active: boolean) => (
     <StatusBadge active={active} activeLabel={t.common.active} inactiveLabel={t.common.inactive} />
   );

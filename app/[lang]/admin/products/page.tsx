@@ -8,6 +8,7 @@ import { ListToolbar } from "@/components/catalogue/list-toolbar";
 import { Pagination } from "@/components/catalogue/pagination";
 import { StatusBadge } from "@/components/catalogue/status-badge";
 import { StatusToggle } from "@/components/catalogue/status-toggle";
+import { StockStatusBadge } from "@/components/inventory/stock-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { buttonClassName } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -21,7 +22,10 @@ import {
 } from "@/lib/catalogue/queries";
 import { isUuid } from "@/lib/catalogue/validation";
 import { formatCurrency, formatDateTime } from "@/lib/format";
+import { format } from "@/lib/i18n/messages";
 import { getLocale, getMessages } from "@/lib/i18n/server";
+import { getStoreRegion } from "@/lib/settings/queries";
+import { stockStatus } from "@/lib/inventory/rules";
 
 export async function generateMetadata(): Promise<Metadata> {
   const messages = await getMessages();
@@ -44,6 +48,7 @@ async function Products({
 }: Pick<PageProps<"/[lang]/admin/products">, "searchParams">) {
   const [locale, messages] = await Promise.all([getLocale(), getMessages()]);
   await requireAdmin(locale);
+  const { timezone: timeZone } = await getStoreRegion();
   const params = parseListParams(await searchParams);
   if (params.category && !isUuid(params.category)) params.category = "";
 
@@ -66,7 +71,7 @@ async function Products({
   const t = messages.catalogue;
   const p = t.products;
   const filtered = Boolean(params.q) || params.status !== "all" || Boolean(params.category);
-  const date = (value: string) => formatDateTime(value, locale, { dateStyle: "medium" });
+  const date = (value: string) => formatDateTime(value, locale, { dateStyle: "medium" }, timeZone);
   const href = (id: string) => `/${locale}/admin/products/${id}`;
 
   const price = (product: ProductListRow) => (
@@ -84,6 +89,24 @@ async function Products({
   const status = (active: boolean) => (
     <StatusBadge active={active} activeLabel={t.common.active} inactiveLabel={t.common.inactive} />
   );
+  // Same rule as the Inventory page: available = stock - reserved.
+  const available = (product: ProductListRow) =>
+    product.inventory
+      ? Math.max(0, product.inventory.quantity - product.inventory.reserved_quantity)
+      : null;
+  const number = (value: number) => value.toLocaleString(locale);
+  const stockBadge = (product: ProductListRow) => {
+    const stock = product.inventory;
+    const value = stock
+      ? stockStatus(stock.quantity, stock.reserved_quantity, stock.low_stock_threshold)
+      : "unconfigured";
+    return <StockStatusBadge status={value} label={messages.inventory.status[value]} />;
+  };
+  /** "12 available" (or "—" without an inventory row). */
+  const availableText = (product: ProductListRow) => {
+    const count = available(product);
+    return count === null ? "—" : format(p.availableCount, { count: number(count) });
+  };
   const category = (product: ProductListRow) =>
     product.category ? <bdi>{product.category.name}</bdi> : p.noCategory;
   const editLink = (product: ProductListRow) => (
@@ -185,6 +208,12 @@ async function Products({
                   {product.sku}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">{category(product)}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  {stockBadge(product)}
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {availableText(product)}
+                  </span>
+                </div>
                 <div className="mt-auto flex items-end justify-between gap-2 pt-2">
                   <span className="min-w-0 text-sm">{price(product)}</span>
                   <StatusToggle
@@ -215,6 +244,12 @@ async function Products({
                   </th>
                   <th scope="col" className="px-4 py-3 text-end font-medium">
                     {p.columns.price}
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-end font-medium">
+                    {p.columns.available}
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-start font-medium">
+                    {p.columns.stock}
                   </th>
                   <th scope="col" className="px-4 py-3 text-start font-medium">
                     {p.columns.status}
@@ -252,6 +287,10 @@ async function Products({
                       {product.sku}
                     </td>
                     <td className="px-4 py-2 text-end">{price(product)}</td>
+                    <td className="px-4 py-2 text-end font-medium tabular-nums">
+                      {available(product) === null ? "—" : number(available(product)!)}
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap">{stockBadge(product)}</td>
                     <td className="px-4 py-2">{status(product.is_active)}</td>
                     <td className="hidden px-4 py-2 whitespace-nowrap text-muted-foreground xl:table-cell">
                       {date(product.updated_at)}
@@ -301,6 +340,12 @@ async function Products({
                     <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                       {price(product)}
                       {status(product.is_active)}
+                    </span>
+                    <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                      {stockBadge(product)}
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        {availableText(product)}
+                      </span>
                     </span>
                   </span>
                   <ChevronRight

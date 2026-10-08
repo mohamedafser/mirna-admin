@@ -47,6 +47,29 @@ export const activeRegion: RegionConfig =
   regions[isRegionKey(configured) ? configured : DEFAULT_REGION];
 
 /**
+ * Countries offered in Settings → Store address / market. The configured
+ * country, currency and timezone are stored in the store_settings table
+ * (migration 020); `activeRegion` is only the fallback before that row loads.
+ * Add a country here to offer it (names come from Intl, per UI language).
+ */
+export const selectableCountries: readonly CountryCode[] = [
+  "AE",
+  "SA",
+  "KW",
+  "QA",
+  "BH",
+  "OM",
+  "EG",
+  "JO",
+  "LB",
+  "MA",
+  "IN",
+  "PK",
+  "GB",
+  "US",
+];
+
+/**
  * Currencies a product may be priced in: every configured market's currency
  * (just AED today). Adding a region adds its currency automatically.
  */

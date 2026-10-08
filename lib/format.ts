@@ -28,7 +28,10 @@ export function formatCurrency(
   }).format(value);
 }
 
-/** Formats a timestamp in the market's timezone (Asia/Dubai for AE). */
+/**
+ * Formats a timestamp in a timezone. Pages pass the store timezone from
+ * Settings (getStoreRegion()); the config/region.ts default is the fallback.
+ */
 export function formatDateTime(
   date: Date | string,
   locale: Locale,

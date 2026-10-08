@@ -13,8 +13,8 @@ export default function manifest(): MetadataRoute.Manifest {
     display: "standalone",
     orientation: "any",
     // Matches the light --background token.
-    background_color: "#fdf9f4",
-    theme_color: "#1c1b1b",
+    background_color: "#faf7f3",
+    theme_color: "#291113",
     categories: ["business", "productivity"],
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },

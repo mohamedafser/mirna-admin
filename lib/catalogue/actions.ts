@@ -4,6 +4,7 @@ import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import { refresh } from "next/cache";
 import { getAdminOrNull } from "@/lib/auth/dal";
+import { parseWholeNumber } from "@/lib/inventory/rules";
 import { parseMoney } from "@/lib/money";
 import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
@@ -42,7 +43,8 @@ type Supabase = SupabaseClient<Database>;
 
 export type CatalogueFormError = "forbidden" | "notFound" | "conflict" | "network" | "unexpected";
 
-export type CatalogueWarning = "imageUploadFailed" | "imageCleanupFailed";
+export type CatalogueWarning =
+  "imageUploadFailed" | "imageCleanupFailed" | "stockNotSaved" | "stockConflict";
 
 export interface FormResult<Fields> {
   status: "idle" | "success" | "error";
@@ -270,6 +272,7 @@ export async function saveProduct(
   const id = String(data.get("id") ?? "");
   const version = String(data.get("updatedAt") ?? "");
   const input = readProduct(data);
+  // Reserved units are re-checked by adjust_inventory(); here only the input.
   const fieldErrors = validateProduct(input);
   if (hasFieldErrors(fieldErrors)) return fieldFailure(fieldErrors);
 
@@ -330,8 +333,10 @@ export async function saveProduct(
       .maybeSingle();
     if (error) return dbFailure(error, "update product");
     if (!updated) return formError("conflict");
+    const expected = parseWholeNumber(String(data.get("expectedStock") ?? ""));
+    const warning = await saveProductInventory(supabase, id, input, expected, "updated");
     refresh();
-    return { status: "success", fieldErrors: {}, id, mode: "updated", at: Date.now() };
+    return { status: "success", fieldErrors: {}, id, mode: "updated", warning, at: Date.now() };
   }
 
   const { data: created, error } = await supabase
@@ -340,7 +345,80 @@ export async function saveProduct(
     .select("id")
     .single();
   if (error) return dbFailure(error, "create product");
-  return { status: "success", fieldErrors: {}, id: created.id, mode: "created", at: Date.now() };
+  // The insert trigger already created the inventory row with 0 units.
+  const warning = await saveProductInventory(supabase, created.id, input, 0, "created");
+  return {
+    status: "success",
+    fieldErrors: {},
+    id: created.id,
+    mode: "created",
+    warning,
+    at: Date.now(),
+  };
+}
+
+/**
+ * Applies the form's stock and low-stock threshold after the product itself
+ * was saved. Stock goes through adjust_inventory() ("set", with the quantity
+ * the admin loaded), so it is locked, validated and written to the stock
+ * history — and never overwrites a change someone else made meanwhile. A
+ * failure here doesn't undo the product save; it is reported as a warning.
+ */
+async function saveProductInventory(
+  supabase: Supabase,
+  productId: string,
+  input: { stock: string; lowStockThreshold: string },
+  expected: number | null,
+  mode: "created" | "updated",
+): Promise<CatalogueWarning | undefined> {
+  const stock = parseWholeNumber(input.stock) ?? 0;
+  const threshold = parseWholeNumber(input.lowStockThreshold) ?? 0;
+
+  const { data: row, error: readError } = await supabase
+    .from("inventory")
+    .select("quantity, low_stock_threshold")
+    .eq("product_id", productId)
+    .maybeSingle();
+  if (readError) {
+    log("read inventory", readError);
+    return "stockNotSaved";
+  }
+  let current = row;
+  if (!current) {
+    // Products created before the inventory trigger may have no row yet.
+    const { error } = await supabase.rpc("initialize_inventory", { p_product_id: productId });
+    if (error) {
+      log("initialize inventory", error);
+      return "stockNotSaved";
+    }
+    current = { quantity: 0, low_stock_threshold: 0 };
+  }
+
+  if (threshold !== current.low_stock_threshold) {
+    const { error } = await supabase
+      .from("inventory")
+      .update({ low_stock_threshold: threshold })
+      .eq("product_id", productId);
+    if (error) {
+      log("update threshold", error);
+      return "stockNotSaved";
+    }
+  }
+
+  // Unchanged from what the admin loaded → leave stock alone.
+  if (stock === (expected ?? current.quantity)) return undefined;
+  const { error } = await supabase.rpc("adjust_inventory", {
+    p_product_id: productId,
+    p_type: "set",
+    p_quantity: stock,
+    p_reason: mode === "created" ? "stock_received" : "manual_correction",
+    p_notes: null,
+    p_expected_quantity: expected ?? current.quantity,
+  });
+  if (!error) return undefined;
+  if (error.message === "inventory:conflict" || error.code === "40001") return "stockConflict";
+  log("set stock", error);
+  return "stockNotSaved";
 }
 
 export async function setProductActive(id: string, active: boolean): Promise<ActionResult> {

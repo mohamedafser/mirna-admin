@@ -12,6 +12,7 @@ import { listAdmins } from "@/lib/auth/admins";
 import { requireAdmin } from "@/lib/auth/dal";
 import { formatDateTime } from "@/lib/format";
 import { getLocale, getMessages } from "@/lib/i18n/server";
+import { getStoreRegion } from "@/lib/settings/queries";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -35,6 +36,7 @@ export default async function AdminsPage() {
 async function Admins() {
   const [locale, messages] = await Promise.all([getLocale(), getMessages()]);
   const user = await requireAdmin(locale);
+  const { timezone: timeZone } = await getStoreRegion();
   const t = messages.accounts.admins;
 
   const admin = createAdminClient();
@@ -66,7 +68,8 @@ async function Admins() {
                     </p>
                   </div>
                   <p className="hidden shrink-0 text-xs text-muted-foreground sm:block">
-                    {t.added} {formatDateTime(new Date(account.createdAt), locale)}
+                    {t.added}{" "}
+                    {formatDateTime(new Date(account.createdAt), locale, undefined, timeZone)}
                   </p>
                 </li>
               ))}

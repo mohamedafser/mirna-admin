@@ -25,6 +25,7 @@ import { STOCK_STATUSES } from "@/lib/inventory/rules";
 import { formatDateTime } from "@/lib/format";
 import { format } from "@/lib/i18n/messages";
 import { getLocale, getMessages } from "@/lib/i18n/server";
+import { getStoreRegion } from "@/lib/settings/queries";
 import { cn } from "@/lib/utils/cn";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -62,6 +63,7 @@ async function Inventory({
 }: Pick<PageProps<"/[lang]/admin/inventory">, "searchParams">) {
   const [locale, messages] = await Promise.all([getLocale(), getMessages()]);
   await requireAdmin(locale);
+  const { timezone: timeZone } = await getStoreRegion();
   const params = parseInventoryParams(await searchParams);
 
   // Three independent queries, in parallel: rows, summary, category filter options.
@@ -90,7 +92,7 @@ async function Inventory({
   const filtered =
     Boolean(params.q || params.stock || params.category) || params.product !== "active";
   const date = (value: string | null) =>
-    value ? formatDateTime(value, locale, { dateStyle: "medium" }) : "—";
+    value ? formatDateTime(value, locale, { dateStyle: "medium" }, timeZone) : "—";
   const number = (value: number | null) => (value === null ? "—" : value.toLocaleString(locale));
   const historyHref = (row: InventoryRow) => `${basePath}/${row.product_id}`;
   const filterHref = (stock: string) => {

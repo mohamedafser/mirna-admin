@@ -22,10 +22,10 @@ import { Card, CardHeader, DetailList, IconBadge } from "@/components/ui/card";
 import { PageSkeleton } from "@/components/ui/states";
 import { navSections, sectionHref } from "@/config/admin-nav";
 import { getDirection, localeConfig } from "@/config/i18n";
-import { activeRegion } from "@/config/region";
 import { requireAdmin } from "@/lib/auth/dal";
 import { formatDateTime } from "@/lib/format";
 import { getLocale, getMessages } from "@/lib/i18n/server";
+import { getStoreRegion } from "@/lib/settings/queries";
 
 export async function generateMetadata(): Promise<Metadata> {
   const messages = await getMessages();
@@ -63,6 +63,7 @@ export default async function DashboardPage() {
 async function Dashboard() {
   const [locale, messages] = await Promise.all([getLocale(), getMessages()]);
   const user = await requireAdmin(locale);
+  const region = await getStoreRegion();
   const t = messages.admin;
   const dir = getDirection(locale);
   const shortcuts = navSections.filter((section) => section.key !== "dashboard");
@@ -92,8 +93,8 @@ async function Dashboard() {
           label={t.workspace.direction}
           value={messages.direction[dir]}
         />
-        <StatTile icon={Coins} label={t.workspace.currency} value={activeRegion.currencyCode} />
-        <StatTile icon={Clock} label={t.workspace.timezone} value={activeRegion.timezone} />
+        <StatTile icon={Coins} label={t.workspace.currency} value={region.currencyCode} />
+        <StatTile icon={Clock} label={t.workspace.timezone} value={region.timezone} />
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-3">
@@ -132,12 +133,12 @@ async function Dashboard() {
           <CardHeader icon={MapPin} title={t.workspace.title} />
           <DetailList
             items={[
-              { icon: MapPin, label: t.workspace.country, value: activeRegion.countryCode },
-              { icon: Coins, label: t.workspace.currency, value: activeRegion.currencyCode },
+              { icon: MapPin, label: t.workspace.country, value: region.countryCode },
+              { icon: Coins, label: t.workspace.currency, value: region.currencyCode },
               {
                 icon: CalendarClock,
                 label: t.workspace.localTime,
-                value: formatDateTime(new Date(), locale),
+                value: formatDateTime(new Date(), locale, undefined, region.timezone),
               },
             ]}
           />

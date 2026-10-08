@@ -25,6 +25,8 @@ export function Breadcrumbs() {
         : messages.catalogue.products.details;
     }
     if (section === "inventory") return messages.inventory.history.title;
+    if (section === "orders") return messages.orders.detailCrumb;
+    if (section === "customers") return messages.customers.detail.title;
     return decodeURIComponent(segment);
   }
   const crumbs = [

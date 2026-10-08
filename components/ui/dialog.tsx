@@ -98,6 +98,7 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel,
+  cancelLabel,
   pending,
   onConfirm,
   tone = "error",
@@ -107,6 +108,8 @@ export function ConfirmDialog({
   title: string;
   description: ReactNode;
   confirmLabel: string;
+  /** Defaults to "Cancel"; override when the action itself is a cancellation. */
+  cancelLabel?: string;
   pending: boolean;
   onConfirm: () => void;
   tone?: "error" | "primary";
@@ -123,7 +126,7 @@ export function ConfirmDialog({
     >
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Button variant="outline" disabled={pending} onClick={() => onOpenChange(false)}>
-          {messages.catalogue.common.cancel}
+          {cancelLabel ?? messages.catalogue.common.cancel}
         </Button>
         <Button
           disabled={pending}
