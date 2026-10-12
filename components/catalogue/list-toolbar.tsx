@@ -163,7 +163,7 @@ export function ListToolbar({
           <div
             role="group"
             aria-label={t.view}
-            className="ms-auto inline-flex h-11 shrink-0 border bg-card p-1"
+            className="ms-auto inline-flex h-11 shrink-0 rounded-md border bg-card p-1"
           >
             {(["list", "grid"] as const).map((option) => {
               const Icon = option === "list" ? List : LayoutGrid;

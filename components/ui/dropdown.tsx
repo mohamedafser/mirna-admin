@@ -104,6 +104,7 @@ export function Dropdown({
         <div
           ref={panelRef}
           id={panelId}
+          data-surface
           className={cn(
             "absolute end-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] origin-top rounded-2xl border bg-popover p-1.5 text-popover-foreground shadow-card",
             panelClassName,

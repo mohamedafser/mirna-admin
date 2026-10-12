@@ -75,7 +75,7 @@ export async function AdminShell({
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 border-b bg-background/80 pt-safe backdrop-blur-md">
+        <header className="app-header sticky top-0 z-30 border-b pt-safe backdrop-blur-md">
           <div className="flex h-16 items-center gap-2 px-4 sm:gap-3 sm:px-6 lg:px-8">
             <Suspense fallback={<span aria-hidden className="size-10 md:hidden" />}>
               <MobileNav />

@@ -11,7 +11,7 @@ export function Label({ className, ...props }: ComponentProps<"label">) {
  * dropdown trigger) so they render identically side by side.
  */
 export const controlClassName = cn(
-  "w-full border border-border bg-card px-3.5 text-base text-foreground sm:text-sm",
+  "w-full rounded-md border border-border bg-card px-3.5 text-base text-foreground sm:text-sm",
   "transition-[border-color] placeholder:text-muted-foreground",
   "hover:border-input focus-visible:border-foreground focus-visible:outline-none",
   "disabled:opacity-60 aria-invalid:border-error",

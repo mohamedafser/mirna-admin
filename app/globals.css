@@ -39,6 +39,19 @@
   --warning-foreground: #ffffff;
   --error: #b91c1c;
   --error-foreground: #ffffff;
+  /* Burgundy for calls to action and the top header (light theme only). */
+  --brand: #291013;
+  --brand-hover: #3d1a1e;
+  --brand-foreground: #faf7f3;
+  --outline: #291013;
+  --outline-foreground: #faf7f3;
+  --header: #291013;
+  --header-foreground: #faf7f3;
+  --header-muted: rgb(250 247 243 / 0.72);
+  --header-accent: rgb(250 247 243 / 0.12);
+  --header-border: #3d1a1e;
+  --header-primary: #faf7f3;
+  --header-primary-foreground: #291013;
 }
 
 /* Dark values are listed twice: once for the explicit choice, once for "system". */
@@ -69,6 +82,18 @@
   --warning-foreground: #2e2405;
   --error: #f87171;
   --error-foreground: #2c0606;
+  --brand: #dbd2c7;
+  --brand-hover: #c4b9ae;
+  --brand-foreground: #291113;
+  --outline: #efe8e1;
+  --outline-foreground: #170d0e;
+  --header: rgb(23 13 14 / 0.8);
+  --header-foreground: #efe8e1;
+  --header-muted: #ab9d96;
+  --header-accent: #301d20;
+  --header-border: #3a2a2b;
+  --header-primary: #dbd2c7;
+  --header-primary-foreground: #291113;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -99,6 +124,18 @@
     --warning-foreground: #2e2405;
     --error: #f87171;
     --error-foreground: #2c0606;
+    --brand: #dbd2c7;
+    --brand-hover: #c4b9ae;
+    --brand-foreground: #291113;
+    --outline: #efe8e1;
+    --outline-foreground: #170d0e;
+    --header: rgb(23 13 14 / 0.8);
+    --header-foreground: #efe8e1;
+    --header-muted: #ab9d96;
+    --header-accent: #301d20;
+    --header-border: #3a2a2b;
+    --header-primary: #dbd2c7;
+    --header-primary-foreground: #291113;
   }
 }
 
@@ -128,6 +165,11 @@
   --color-warning-foreground: var(--warning-foreground);
   --color-error: var(--error);
   --color-error-foreground: var(--error-foreground);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-outline: var(--outline);
+  --color-outline-foreground: var(--outline-foreground);
 
   /* Same type system as the storefront. Body: Nunito Sans; display (headings,
      navigation, buttons): Montserrat; Arabic: Tajawal. */
@@ -140,16 +182,17 @@
   --shadow-card: 0 1px 2px rgb(41 17 19 / 0.04), 0 6px 20px -8px rgb(41 17 19 / 0.08);
   --shadow-elevated: 0 16px 40px -12px rgb(41 17 19 / 0.22);
 
-  /* Square, editorial surfaces like the storefront. rounded-full is kept only
-     for tiny status dots and spinners. */
-  --radius-xs: 0;
-  --radius-sm: 0;
-  --radius-md: 0;
-  --radius-lg: 0;
-  --radius-xl: 0;
-  --radius-2xl: 0;
-  --radius-3xl: 0;
-  --radius-4xl: 0;
+  /* Softly rounded surfaces: every radius step is 4px so cards, inputs,
+     buttons and menus match. rounded-full is kept for status dots and
+     spinners. */
+  --radius-xs: 4px;
+  --radius-sm: 4px;
+  --radius-md: 4px;
+  --radius-lg: 4px;
+  --radius-xl: 4px;
+  --radius-2xl: 4px;
+  --radius-3xl: 4px;
+  --radius-4xl: 4px;
 }
 
 /*
@@ -172,6 +215,43 @@
   &:lang(ar) {
     letter-spacing: normal;
   }
+}
+
+/*
+ * Top header (.app-header in AdminShell): burgundy in light, translucent page
+ * colour in dark. Its breadcrumbs, menu triggers and avatar use the regular
+ * tokens, so they are re-pointed at header colours here; menus and the mobile
+ * drawer that open inside it ([data-surface], dialog) get the page values back.
+ */
+:root {
+  --page-foreground: var(--foreground);
+  --page-muted-foreground: var(--muted-foreground);
+  --page-accent: var(--accent);
+  --page-accent-foreground: var(--accent-foreground);
+  --page-ring: var(--ring);
+  --page-primary: var(--primary);
+  --page-primary-foreground: var(--primary-foreground);
+}
+.app-header {
+  background-color: var(--header);
+  color: var(--header-foreground);
+  border-color: var(--header-border);
+  --foreground: var(--header-foreground);
+  --muted-foreground: var(--header-muted);
+  --accent: var(--header-accent);
+  --accent-foreground: var(--header-foreground);
+  --ring: var(--header-foreground);
+  --primary: var(--header-primary);
+  --primary-foreground: var(--header-primary-foreground);
+}
+.app-header :is(dialog, [data-surface]) {
+  --foreground: var(--page-foreground);
+  --muted-foreground: var(--page-muted-foreground);
+  --accent: var(--page-accent);
+  --accent-foreground: var(--page-accent-foreground);
+  --ring: var(--page-ring);
+  --primary: var(--page-primary);
+  --primary-foreground: var(--page-primary-foreground);
 }
 
 /*

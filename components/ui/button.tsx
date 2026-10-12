@@ -6,10 +6,10 @@ type Size = "md" | "sm" | "lg" | "icon" | "icon-sm";
 
 // Square, uppercase, tracked: the storefront's editorial button style.
 const variants: Record<Variant, string> = {
-  primary: "bg-primary text-primary-foreground hover:bg-primary/85",
+  primary: "bg-brand text-brand-foreground hover:bg-brand-hover",
   secondary: "bg-secondary text-secondary-foreground hover:bg-accent",
   outline:
-    "border border-foreground/80 bg-transparent text-foreground hover:bg-foreground hover:text-background",
+    "border border-outline bg-transparent text-outline hover:bg-outline hover:text-outline-foreground",
   ghost: "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
 };
 
@@ -28,7 +28,7 @@ export function buttonClassName({
 }: { variant?: Variant; size?: Size; className?: string } = {}) {
   const isIcon = size === "icon" || size === "icon-sm";
   return cn(
-    "inline-flex shrink-0 items-center justify-center font-medium whitespace-nowrap",
+    "inline-flex shrink-0 items-center justify-center rounded-md font-medium whitespace-nowrap",
     !isIcon && "caps",
     "transition-[color,background-color,border-color,opacity]",
     "disabled:pointer-events-none disabled:opacity-60 [&_svg]:shrink-0",
