@@ -20,7 +20,7 @@ export function LocaleSwitcher({ className }: { className?: string }) {
   return (
     <nav
       aria-label={messages.locale.label}
-      className={cn("inline-flex items-center gap-1 border bg-card p-1", className)}
+      className={cn("inline-flex items-center gap-1 rounded-md border bg-card p-1", className)}
     >
       <Languages aria-hidden className="mx-1.5 size-4 text-muted-foreground" />
       {locales.map((locale) => {

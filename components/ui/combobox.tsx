@@ -285,7 +285,7 @@ export function Combobox({
                   setActive(firstEnabled(next));
                 }}
                 onKeyDown={onListKeyDown}
-                className="h-9 w-full border border-border bg-card ps-8 pe-2.5 text-base focus-visible:border-foreground focus-visible:outline-none sm:text-sm"
+                className="h-9 w-full rounded-md border border-border bg-card ps-8 pe-2.5 text-base focus-visible:border-foreground focus-visible:outline-none sm:text-sm"
               />
             </div>
           )}

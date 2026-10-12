@@ -39,7 +39,10 @@ export function ThemeSwitcher({
         {messages.theme.label}
       </legend>
       <div
-        className={cn("border bg-card p-1", fullWidth ? "grid w-full grid-cols-3" : "inline-flex")}
+        className={cn(
+          "rounded-md border bg-card p-1",
+          fullWidth ? "grid w-full grid-cols-3" : "inline-flex",
+        )}
       >
         {themes.map((theme) => {
           const Icon = themeIcons[theme];
