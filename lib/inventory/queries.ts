@@ -1,6 +1,12 @@
 import "server-only";
 import { cache } from "react";
-import { pageRange, searchPattern, toPage, type Page } from "@/lib/catalogue/queries";
+import {
+  categoryFilterIds,
+  pageRange,
+  searchPattern,
+  toPage,
+  type Page,
+} from "@/lib/catalogue/queries";
 import { isUuid } from "@/lib/catalogue/validation";
 import type { Database, Tables } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
@@ -71,7 +77,7 @@ export async function listInventory(params: InventoryParams): Promise<Page<Inven
   const pattern = searchPattern(params.q);
   if (pattern) query = query.or(`name.ilike.${pattern},sku.ilike.${pattern}`);
   if (params.stock) query = query.eq("stock_status", params.stock);
-  if (params.category) query = query.eq("category_id", params.category);
+  if (params.category) query = query.in("category_id", await categoryFilterIds(params.category));
   if (params.product !== "all") query = query.eq("product_active", params.product === "active");
 
   const { data, error, count } = await query.range(...pageRange(params.page, INVENTORY_PAGE_SIZE));

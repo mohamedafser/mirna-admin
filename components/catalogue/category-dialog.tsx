@@ -4,6 +4,7 @@ import { LoaderCircle, Pencil, Plus, Trash2, Undo2 } from "lucide-react";
 import { useId, useState, useTransition, type FormEvent } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { Dialog } from "@/components/ui/dialog";
 import { Field, Input, Textarea } from "@/components/ui/form";
 import { useToast } from "@/components/ui/toast";
@@ -33,14 +34,27 @@ export interface EditableCategory {
   sort_order: number;
   is_active: boolean;
   updated_at: string;
+  parent_id: string | null;
+}
+
+/** A top-level category that can be chosen as a parent. */
+export interface ParentOption {
+  id: string;
+  name: string;
 }
 
 /** "Create category" / "Edit" button that opens the category form in a dialog. */
 export function CategoryDialog({
   category,
+  parents,
+  hasChildren = false,
   compact = false,
 }: {
   category?: EditableCategory;
+  /** Top-level categories (the possible parents). */
+  parents: ParentOption[];
+  /** The category has subcategories, so it must stay top-level. */
+  hasChildren?: boolean;
   /** Icon-only edit button (tables, cards). */
   compact?: boolean;
 }) {
@@ -83,7 +97,13 @@ export function CategoryDialog({
         title={category ? t.edit : t.create}
         className="sm:max-w-2xl"
       >
-        <CategoryForm key={session} category={category} onDone={() => setOpen(false)} />
+        <CategoryForm
+          key={session}
+          category={category}
+          parents={parents.filter((parent) => parent.id !== category?.id)}
+          hasChildren={hasChildren}
+          onDone={() => setOpen(false)}
+        />
       </Dialog>
     </>
   );
@@ -91,7 +111,17 @@ export function CategoryDialog({
 
 const initialState: CategoryFormResult = { status: "idle", fieldErrors: {}, at: 0 };
 
-function CategoryForm({ category, onDone }: { category?: EditableCategory; onDone: () => void }) {
+function CategoryForm({
+  category,
+  parents,
+  hasChildren,
+  onDone,
+}: {
+  category?: EditableCategory;
+  parents: ParentOption[];
+  hasChildren: boolean;
+  onDone: () => void;
+}) {
   const { messages } = useI18n();
   const t = messages.catalogue;
   const toast = useToast();
@@ -200,6 +230,27 @@ function CategoryForm({ category, onDone }: { category?: EditableCategory; onDon
             )}
           </Field>
         </div>
+        <Field
+          id={`${id}-parent`}
+          label={f.parent}
+          hint={hasChildren ? f.parentLocked : f.parentHint}
+          error={errorText(fieldErrors.parentId)}
+        >
+          {(a11y) => (
+            <Combobox
+              {...a11y}
+              name="parentId"
+              dataField="parentId"
+              disabled={pending || hasChildren}
+              defaultValue={category?.parent_id ?? ""}
+              onChange={() => setDirty(true)}
+              options={[
+                { value: "", label: f.parentNone },
+                ...parents.map((parent) => ({ value: parent.id, label: parent.name })),
+              ]}
+            />
+          )}
+        </Field>
         <Field
           id={`${id}-description`}
           label={f.description}

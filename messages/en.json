@@ -118,6 +118,7 @@
     "orders": "Orders",
     "customers": "Customers",
     "admins": "Admins",
+    "banner": "Homepage banner",
     "settings": "Settings",
     "profile": "Profile",
     "collapseSidebar": "Collapse sidebar",
@@ -272,7 +273,9 @@
       "thresholdRequired": "Enter a threshold (0 turns the alert off).",
       "thresholdInvalid": "Enter a whole number of 0 or more.",
       "stockNotSaved": "The product was saved, but its stock couldn't be updated. Check the stock and try again.",
-      "stockConflict": "The product was saved, but the stock changed while you were editing, so it wasn't overwritten. Check the new stock and try again."
+      "stockConflict": "The product was saved, but the stock changed while you were editing, so it wasn't overwritten. Check the new stock and try again.",
+      "parentInvalid": "Choose a top-level category as the parent.",
+      "parentHasChildren": "This category has subcategories, so it can't be moved under another category."
     },
     "categories": {
       "subtitle": "Group products for navigation in the storefront.",
@@ -288,7 +291,8 @@
         "products": "Products",
         "sortOrder": "Sort order",
         "updated": "Updated",
-        "actions": "Actions"
+        "actions": "Actions",
+        "subcategoryOf": "in {name}"
       },
       "emptyTitle": "No categories found.",
       "emptyBody": "Create a category before adding products.",
@@ -313,7 +317,11 @@
         "sortOrder": "Sort order",
         "sortOrderHint": "Lower numbers appear first.",
         "active": "Active",
-        "activeHint": "Inactive categories are hidden from the storefront."
+        "activeHint": "Inactive categories are hidden from the storefront.",
+        "parent": "Parent category",
+        "parentNone": "None (top-level category)",
+        "parentHint": "Top-level categories (e.g. Women, Kids) appear in the store header; subcategories appear in their dropdown.",
+        "parentLocked": "This category has subcategories, so it stays top-level."
       },
       "created": "Category created successfully.",
       "updated": "Category updated successfully.",
@@ -370,6 +378,15 @@
         "category": "Category",
         "categoryPlaceholder": "Choose a category",
         "inactiveCategory": "{name} (inactive)",
+        "subcategory": "Subcategory",
+        "subcategoryHint": "Shown in the store's {name} menu. Leave as None to file the product directly under {name}.",
+        "subcategoryFirst": "Choose a category first.",
+        "subcategoryNone": "None (directly in {name})",
+        "subcategoryNew": "+ New subcategory…",
+        "subcategoryName": "New subcategory name",
+        "subcategoryPlaceholder": "e.g. Winter",
+        "subcategoryAdd": "Add",
+        "subcategoryCreated": "Subcategory “{name}” added to {parent}.",
         "shortDescription": "Short description",
         "shortDescriptionHint": "One or two sentences for product lists. Up to 500 characters.",
         "description": "Description",
@@ -710,6 +727,25 @@
       "noOrdersTitle": "No orders yet",
       "noOrdersBody": "Orders this customer places appear here."
     }
+  },
+  "banner": {
+    "title": "Homepage banner",
+    "subtitle": "Up to two images, shown as a slideshow at the top of the online store's home page.",
+    "slide": "Slide {n}",
+    "empty": "No image yet",
+    "prompt": "Drag an image here or",
+    "browse": "choose a file",
+    "replace": "replace it",
+    "drop": "Drop the image to upload",
+    "hint": "JPEG, PNG or WebP, up to 5 MB. Wide landscape photos (about 2400 × 1350 px) look best.",
+    "remove": "Remove",
+    "saving": "Saving…",
+    "uploaded": "Slide {n} saved. It appears on the store within a few minutes.",
+    "removed": "Slide {n} removed.",
+    "failed": "Couldn't save the change. Please try again.",
+    "forbidden": "You don't have permission to change the banner.",
+    "cleanupFailed": "Saved, but the previous image file couldn't be deleted.",
+    "notice": "With no images, the store shows its default background. With one image, it shows that image without a slideshow."
   },
   "settings": {
     "title": "Settings",

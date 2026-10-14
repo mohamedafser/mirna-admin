@@ -36,6 +36,7 @@ import { ImageDropzone } from "./image-dropzone";
 import { ImageGallery } from "./image-gallery";
 import { Panel } from "./panel";
 import { useUnsavedChanges } from "./use-unsaved-changes";
+import { CategoryPicker, type CategoryChoice } from "./category-picker";
 
 export interface EditableProduct {
   id: string;
@@ -62,12 +63,6 @@ export interface EditableProduct {
 /** Product and stock are versioned separately; either change reloads the form. */
 const versionOf = (product: EditableProduct) =>
   `${product.updated_at}|${product.inventory?.updatedAt ?? ""}`;
-
-export interface CategoryChoice {
-  id: string;
-  name: string;
-  isActive: boolean;
-}
 
 /** An image chosen on the "new product" page, uploaded when the product is saved. */
 interface PendingImage {
@@ -272,6 +267,8 @@ function ProductFormFields({
         setDirty(false);
         if (result.warning) toast.warning(t.errors[result.warning]);
         else toast.success(t.products.updated);
+        // Back to the list (the toast lives in the admin layout, so it stays visible).
+        router.push(`/${locale}/admin/products`);
       }
     });
   }
@@ -345,29 +342,14 @@ function ProductFormFields({
                   />
                 )}
               </Field>
-              <Field
-                id={`${id}-category`}
-                label={f.category}
+              <CategoryPicker
+                idPrefix={id}
+                categories={choices}
+                currentId={product?.category_id ?? null}
+                disabled={pending}
                 error={errorText(fieldErrors.categoryId)}
-              >
-                {(a11y) => (
-                  <Combobox
-                    {...a11y}
-                    name="categoryId"
-                    dataField="categoryId"
-                    disabled={pending}
-                    defaultValue={product?.category_id ?? ""}
-                    placeholder={f.categoryPlaceholder}
-                    onChange={() => setDirty(true)}
-                    options={choices.map((category) => ({
-                      value: category.id,
-                      label: category.isActive
-                        ? category.name
-                        : format(f.inactiveCategory, { name: category.name }),
-                    }))}
-                  />
-                )}
-              </Field>
+                onChange={() => setDirty(true)}
+              />
             </div>
             <Field
               id={`${id}-slug`}

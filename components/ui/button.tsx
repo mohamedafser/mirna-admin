@@ -30,7 +30,8 @@ export function buttonClassName({
   return cn(
     "inline-flex shrink-0 items-center justify-center rounded-md font-medium whitespace-nowrap",
     !isIcon && "caps",
-    "transition-[color,background-color,border-color,opacity]",
+    // Quick colour fades, and a slight press-in so clicks feel responsive.
+    "transition-[color,background-color,border-color,opacity,transform] duration-200 ease-out active:scale-[0.97]",
     "disabled:pointer-events-none disabled:opacity-60 [&_svg]:shrink-0",
     variants[variant],
     sizes[size],

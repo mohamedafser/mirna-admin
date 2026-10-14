@@ -37,7 +37,7 @@ export function NavLinks({
             onClick={onNavigate}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "group relative flex items-center gap-3 px-3 py-2.5 font-display text-[0.8125rem] transition-colors",
+              "group relative flex items-center gap-3 px-3 py-2.5 font-display text-[0.8125rem] transition-colors duration-150",
               "sidebar-collapsed:justify-center sidebar-collapsed:px-0",
               active
                 ? "bg-brand-soft font-semibold text-foreground"

@@ -51,10 +51,12 @@ export function ThemeSwitcher({
             <label
               key={theme}
               className={cn(
-                "flex cursor-pointer items-center justify-center gap-1.5 rounded-lg text-sm whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground",
+                "flex cursor-pointer items-center justify-center gap-1.5 rounded-lg text-sm whitespace-nowrap transition-colors",
                 "has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-ring",
                 "px-3 py-1.5",
-                active && "bg-foreground font-medium text-background hover:text-background",
+                active
+                  ? "bg-foreground font-medium text-background"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               <input

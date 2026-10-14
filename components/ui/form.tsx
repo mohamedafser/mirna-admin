@@ -12,8 +12,9 @@ export function Label({ className, ...props }: ComponentProps<"label">) {
  */
 export const controlClassName = cn(
   "w-full rounded-md border border-border bg-card px-3.5 text-base text-foreground sm:text-sm",
-  "transition-[border-color] placeholder:text-muted-foreground",
-  "hover:border-input focus-visible:border-foreground focus-visible:outline-none",
+  "transition-[border-color,box-shadow] duration-200 placeholder:text-muted-foreground",
+  // A soft halo on focus, in the theme's ring colour.
+  "hover:border-input focus-visible:border-foreground focus-visible:ring-[3px] focus-visible:ring-ring/15 focus-visible:outline-none",
   "disabled:opacity-60 aria-invalid:border-error",
 );
 

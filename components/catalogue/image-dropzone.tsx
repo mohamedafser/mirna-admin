@@ -6,8 +6,9 @@ import { IMAGE_ACCEPT } from "@/lib/catalogue/images";
 import { cn } from "@/lib/utils/cn";
 
 /**
- * Upload area: click (a real button, keyboard accessible) or drag and drop.
- * Hands raw files to `onFiles`; validation happens in the caller.
+ * Upload area: click anywhere in it, use the "choose a file" button (keyboard
+ * accessible), or drag and drop. Hands raw files to `onFiles`; validation
+ * happens in the caller.
  */
 export function ImageDropzone({
   onFiles,
@@ -34,6 +35,12 @@ export function ImageDropzone({
 
   return (
     <div
+      // The whole box opens the picker; the button's click bubbles here too.
+      // Clicks coming from the input itself (inputRef.click()) are ignored.
+      onClick={(event) => {
+        if (disabled || event.target === inputRef.current) return;
+        inputRef.current?.click();
+      }}
       onDragEnter={(event) => {
         event.preventDefault();
         if (!disabled) setDragging(true);
@@ -52,7 +59,7 @@ export function ImageDropzone({
       className={cn(
         "flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed px-3 py-4 text-center text-sm transition-colors",
         dragging ? "border-primary bg-primary/5" : "border-border bg-muted/30",
-        disabled && "opacity-60",
+        disabled ? "opacity-60" : "cursor-pointer hover:border-foreground/40 hover:bg-muted/60",
         className,
       )}
     >
@@ -67,8 +74,7 @@ export function ImageDropzone({
               type="button"
               disabled={disabled}
               aria-describedby={hint ? hintId : undefined}
-              onClick={() => inputRef.current?.click()}
-              className="font-medium text-primary underline-offset-4 hover:underline focus-visible:underline"
+              className="cursor-pointer font-medium text-primary underline underline-offset-4"
             >
               {browseLabel}
             </button>

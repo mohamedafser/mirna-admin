@@ -1,10 +1,10 @@
-import { ImageOff } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils/cn";
 
 /**
  * Catalogue thumbnail (square, or 4:3 with aspect="wide"). next/image serves a resized copy matching
- * `sizes` (thumbnails never download the original upload).
+ * `sizes` (thumbnails never download the original upload). Without an image it shows the brand
+ * placeholder: the "M" monogram on the soft brand colour, scaled to the tile (container units).
  */
 export function CatalogueImage({
   src,
@@ -26,7 +26,8 @@ export function CatalogueImage({
   return (
     <span
       className={cn(
-        "relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted text-muted-foreground",
+        "@container relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-lg border",
+        src ? "bg-muted" : "bg-brand-soft text-brand-soft-foreground",
         aspect === "square" ? "aspect-square" : "aspect-[4/3]",
         className,
       )}
@@ -41,7 +42,12 @@ export function CatalogueImage({
           className="object-cover"
         />
       ) : (
-        <ImageOff aria-hidden className="size-1/3 max-h-6 max-w-6" />
+        <span
+          aria-hidden
+          className="font-display text-[42cqw] leading-none font-medium opacity-60 select-none"
+        >
+          M
+        </span>
       )}
     </span>
   );

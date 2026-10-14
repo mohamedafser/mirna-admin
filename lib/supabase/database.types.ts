@@ -88,6 +88,7 @@ export type Database = {
           image_url: string | null;
           is_active: boolean;
           name: string;
+          parent_id: string | null;
           slug: string;
           sort_order: number;
           updated_at: string;
@@ -100,6 +101,7 @@ export type Database = {
           image_url?: string | null;
           is_active?: boolean;
           name: string;
+          parent_id?: string | null;
           slug: string;
           sort_order?: number;
           updated_at?: string;
@@ -112,9 +114,34 @@ export type Database = {
           image_url?: string | null;
           is_active?: boolean;
           name?: string;
+          parent_id?: string | null;
           slug?: string;
           sort_order?: number;
           updated_at?: string;
+        };
+        Relationships: [];
+      };
+      hero_slides: {
+        Row: {
+          image_path: string;
+          image_url: string;
+          position: number;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          image_path: string;
+          image_url: string;
+          position: number;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          image_path?: string;
+          image_url?: string;
+          position?: number;
+          updated_at?: string;
+          updated_by?: string | null;
         };
         Relationships: [];
       };
