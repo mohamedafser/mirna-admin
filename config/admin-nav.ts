@@ -1,6 +1,7 @@
 import {
   Boxes,
   FolderTree,
+  GalleryHorizontalEnd,
   LayoutDashboard,
   Package,
   Settings,
@@ -28,6 +29,7 @@ export type AdminSectionKey =
   | "orders"
   | "customers"
   | "admins"
+  | "banner"
   | "settings"
   | "profile";
 
@@ -72,6 +74,7 @@ export const adminSections: readonly AdminSection[] = [
   { key: "orders", segment: "orders", icon: ShoppingCart, inNav: true, available: true },
   { key: "customers", segment: "customers", icon: Users, inNav: true, available: true },
   { key: "admins", segment: "admins", icon: ShieldCheck, inNav: true, available: true },
+  { key: "banner", segment: "banner", icon: GalleryHorizontalEnd, inNav: true, available: true },
   { key: "settings", segment: "settings", icon: Settings, inNav: true, available: true },
   { key: "profile", segment: "profile", icon: UserRound, inNav: false, available: false },
 ];

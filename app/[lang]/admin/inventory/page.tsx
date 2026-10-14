@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { CatalogueImage } from "@/components/catalogue/catalogue-image";
 import { ListToolbar } from "@/components/catalogue/list-toolbar";
+import { ListViews } from "@/components/catalogue/list-views";
+import { ViewLink } from "@/components/catalogue/view-link";
 import { Pagination } from "@/components/catalogue/pagination";
 import { AdjustStockDialog, type AdjustableItem } from "@/components/inventory/adjust-stock-dialog";
 import { InitializeButton } from "@/components/inventory/initialize-button";
@@ -72,6 +74,9 @@ async function Inventory({
     getInventorySummary(params.product !== "active"),
     listCategoryOptions(),
   ]);
+
+  // Full path for subcategories ("Women › Winter").
+  const categoryLabel = new Map(categories.map((option) => [option.id, option.name]));
 
   const listParams = {
     q: params.q,
@@ -147,7 +152,9 @@ async function Inventory({
           {size === "sm" ? (
             <span className="line-clamp-1">
               {row.category_name ? (
-                <bdi>{row.category_name}</bdi>
+                <bdi>
+                  {(row.category_id && categoryLabel.get(row.category_id)) ?? row.category_name}
+                </bdi>
               ) : (
                 messages.catalogue.products.noCategory
               )}
@@ -183,7 +190,7 @@ async function Inventory({
       {/* Summary: each tile filters the list. */}
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         {tiles.map((tile) => (
-          <Link
+          <ViewLink
             key={tile.key || "all"}
             href={filterHref(tile.key)}
             aria-current={params.stock === tile.key ? "true" : undefined}
@@ -196,7 +203,7 @@ async function Inventory({
             <span className={cn("block text-xl font-semibold tabular-nums", tile.tone)}>
               {tile.value.toLocaleString(locale)}
             </span>
-          </Link>
+          </ViewLink>
         ))}
         <div className="rounded-xl border bg-card px-3 py-2.5">
           <span className="caps block text-[0.625rem] text-muted-foreground">
@@ -257,176 +264,203 @@ async function Inventory({
             <EmptyState icon={Boxes} title={t.emptyTitle} description={t.emptyBody} />
           )}
         </Card>
-      ) : params.view === "grid" ? (
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {result.rows.map((row) => (
-            <li
-              key={row.product_id}
-              className="group flex flex-col overflow-hidden rounded-2xl border bg-card transition-colors hover:border-primary/40"
-            >
-              <Link href={historyHref(row)} className="relative block" tabIndex={-1} aria-hidden>
-                <CatalogueImage
-                  src={row.image_url}
-                  alt=""
-                  sizes="(min-width: 1280px) 230px, (min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
-                  className="w-full rounded-none border-0 border-b"
-                />
-                <span className="absolute start-2 top-2">
-                  <StockStatusBadge status={row.stock_status} label={t.status[row.stock_status]} />
-                </span>
-              </Link>
-              <div className="flex flex-1 flex-col gap-1 p-3">
-                <Link
-                  href={historyHref(row)}
-                  className="line-clamp-2 text-sm leading-snug font-medium group-hover:underline"
-                >
-                  <bdi>{row.name}</bdi>
-                </Link>
-                <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-                  <span className="truncate font-mono" dir="ltr">
-                    {row.sku}
-                  </span>
-                  {!row.product_active && <Badge className="py-0">{t.productInactive}</Badge>}
-                </p>
-                {row.inventory_id !== null ? (
-                  <dl className="mt-1 grid grid-cols-3 gap-1 rounded-lg bg-muted/40 px-2 py-1.5 text-center">
-                    <div>
-                      <dt className="text-[0.6875rem] text-muted-foreground">
-                        {t.columns.available}
-                      </dt>
-                      <dd className="text-sm font-semibold tabular-nums">
-                        {number(row.available_quantity)}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-[0.6875rem] text-muted-foreground">{t.columns.stock}</dt>
-                      <dd className="text-sm tabular-nums">{number(row.quantity)}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-[0.6875rem] text-muted-foreground">
-                        {t.columns.reserved}
-                      </dt>
-                      <dd className="text-sm text-muted-foreground tabular-nums">
-                        {number(row.reserved_quantity)}
-                      </dd>
-                    </div>
-                  </dl>
-                ) : (
-                  <p className="mt-1 text-xs text-muted-foreground">{t.notConfigured}</p>
-                )}
-                <div className="mt-auto flex justify-end gap-1.5 pt-2">{actions(row)}</div>
-              </div>
-            </li>
-          ))}
-        </ul>
       ) : (
-        <>
-          {/* Tablet / desktop: table */}
-          <div className="hidden overflow-hidden rounded-2xl border bg-card md:block">
-            <table className="w-full text-sm">
-              <caption className="sr-only">{t.title}</caption>
-              <thead className="caps border-b text-[0.625rem] text-muted-foreground">
-                <tr>
-                  <th scope="col" className="px-4 py-3 text-start font-medium">
-                    {t.columns.product}
-                  </th>
-                  <th scope="col" className="hidden px-4 py-3 text-start font-medium lg:table-cell">
-                    {t.columns.sku}
-                  </th>
-                  <th scope="col" className="px-3 py-3 text-end font-medium">
-                    {t.columns.stock}
-                  </th>
-                  <th scope="col" className="px-3 py-3 text-end font-medium">
-                    {t.columns.reserved}
-                  </th>
-                  <th scope="col" className="px-3 py-3 text-end font-medium">
-                    {t.columns.available}
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-start font-medium">
-                    {t.columns.status}
-                  </th>
-                  <th scope="col" className="hidden px-3 py-3 text-end font-medium xl:table-cell">
-                    {t.columns.threshold}
-                  </th>
-                  <th scope="col" className="hidden px-4 py-3 text-start font-medium xl:table-cell">
-                    {t.columns.updated}
-                  </th>
-                  <th scope="col" className="w-0 px-4 py-3">
-                    <span className="sr-only">{t.columns.actions}</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {result.rows.map((row) => (
-                  <tr key={row.product_id} className="transition-colors hover:bg-accent/60">
-                    <td className="max-w-xs px-4 py-2">{product(row, "sm")}</td>
-                    <td
-                      className="hidden px-4 py-2 font-mono text-xs whitespace-nowrap lg:table-cell"
-                      dir="ltr"
-                    >
-                      {row.sku}
-                    </td>
-                    <td className="px-3 py-2 text-end tabular-nums">{number(row.quantity)}</td>
-                    <td className="px-3 py-2 text-end text-muted-foreground tabular-nums">
-                      {number(row.reserved_quantity)}
-                    </td>
-                    <td className="px-3 py-2 text-end font-semibold tabular-nums">
-                      {number(row.available_quantity)}
-                    </td>
-                    <td className="px-4 py-2">
+        <ListViews
+          grid={
+            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {result.rows.map((row) => (
+                <li
+                  key={row.product_id}
+                  className="group flex flex-col overflow-hidden rounded-2xl border bg-card transition-[border-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-card"
+                >
+                  <Link
+                    href={historyHref(row)}
+                    className="relative block"
+                    tabIndex={-1}
+                    aria-hidden
+                  >
+                    <CatalogueImage
+                      src={row.image_url}
+                      alt=""
+                      sizes="(min-width: 1280px) 230px, (min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
+                      className="w-full rounded-none border-0 border-b"
+                    />
+                    <span className="absolute start-2 top-2 flex rounded-md bg-card shadow-card">
                       <StockStatusBadge
                         status={row.stock_status}
                         label={t.status[row.stock_status]}
                       />
-                    </td>
-                    <td className="hidden px-3 py-2 text-end text-muted-foreground tabular-nums xl:table-cell">
-                      {number(row.low_stock_threshold)}
-                    </td>
-                    <td className="hidden px-4 py-2 whitespace-nowrap text-muted-foreground xl:table-cell">
-                      {date(row.updated_at)}
-                    </td>
-                    <td className="px-4 py-2">
-                      <div className="flex justify-end gap-1.5">{actions(row)}</div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Phones: compact rows with the key numbers */}
-          <ul className="divide-y overflow-hidden rounded-2xl border bg-card md:hidden">
-            {result.rows.map((row) => (
-              <li key={row.product_id} className="grid gap-2 px-3 py-2.5">
-                <div className="flex items-center gap-2">
-                  <div className="min-w-0 flex-1 text-sm">{product(row, "md")}</div>
-                  <div className="flex shrink-0 gap-1.5">{actions(row)}</div>
-                </div>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                  <StockStatusBadge status={row.stock_status} label={t.status[row.stock_status]} />
-                  {row.inventory_id !== null && (
-                    <>
-                      <span>
-                        {t.columns.available}:{" "}
-                        <span className="font-semibold text-foreground tabular-nums">
+                    </span>
+                  </Link>
+                  <div className="flex flex-1 flex-col gap-1 p-3">
+                    <Link
+                      href={historyHref(row)}
+                      className="line-clamp-2 text-sm leading-snug font-medium group-hover:underline"
+                    >
+                      <bdi>{row.name}</bdi>
+                    </Link>
+                    <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                      <span className="truncate font-mono" dir="ltr">
+                        {row.sku}
+                      </span>
+                      {!row.product_active && <Badge className="py-0">{t.productInactive}</Badge>}
+                    </p>
+                    {row.inventory_id !== null ? (
+                      <dl className="mt-1 grid grid-cols-3 gap-1 rounded-lg bg-muted/40 px-2 py-1.5 text-center">
+                        <div>
+                          <dt className="text-[0.6875rem] text-muted-foreground">
+                            {t.columns.available}
+                          </dt>
+                          <dd className="text-sm font-semibold tabular-nums">
+                            {number(row.available_quantity)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-[0.6875rem] text-muted-foreground">
+                            {t.columns.stock}
+                          </dt>
+                          <dd className="text-sm tabular-nums">{number(row.quantity)}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-[0.6875rem] text-muted-foreground">
+                            {t.columns.reserved}
+                          </dt>
+                          <dd className="text-sm text-muted-foreground tabular-nums">
+                            {number(row.reserved_quantity)}
+                          </dd>
+                        </div>
+                      </dl>
+                    ) : (
+                      <p className="mt-1 text-xs text-muted-foreground">{t.notConfigured}</p>
+                    )}
+                    <div className="mt-auto flex justify-end gap-1.5 pt-2">{actions(row)}</div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          }
+          list={
+            <>
+              {/* Tablet / desktop: table */}
+              <div className="hidden overflow-hidden rounded-2xl border bg-card md:block">
+                <table className="w-full text-sm">
+                  <caption className="sr-only">{t.title}</caption>
+                  <thead className="caps border-b text-[0.625rem] text-muted-foreground">
+                    <tr>
+                      <th scope="col" className="px-4 py-3 text-start font-medium">
+                        {t.columns.product}
+                      </th>
+                      <th
+                        scope="col"
+                        className="hidden px-4 py-3 text-start font-medium lg:table-cell"
+                      >
+                        {t.columns.sku}
+                      </th>
+                      <th scope="col" className="px-3 py-3 text-end font-medium">
+                        {t.columns.stock}
+                      </th>
+                      <th scope="col" className="px-3 py-3 text-end font-medium">
+                        {t.columns.reserved}
+                      </th>
+                      <th scope="col" className="px-3 py-3 text-end font-medium">
+                        {t.columns.available}
+                      </th>
+                      <th scope="col" className="px-4 py-3 text-start font-medium">
+                        {t.columns.status}
+                      </th>
+                      <th
+                        scope="col"
+                        className="hidden px-3 py-3 text-end font-medium xl:table-cell"
+                      >
+                        {t.columns.threshold}
+                      </th>
+                      <th
+                        scope="col"
+                        className="hidden px-4 py-3 text-start font-medium xl:table-cell"
+                      >
+                        {t.columns.updated}
+                      </th>
+                      <th scope="col" className="w-0 px-4 py-3">
+                        <span className="sr-only">{t.columns.actions}</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {result.rows.map((row) => (
+                      <tr key={row.product_id} className="transition-colors hover:bg-accent/60">
+                        <td className="max-w-xs px-4 py-2">{product(row, "sm")}</td>
+                        <td
+                          className="hidden px-4 py-2 font-mono text-xs whitespace-nowrap lg:table-cell"
+                          dir="ltr"
+                        >
+                          {row.sku}
+                        </td>
+                        <td className="px-3 py-2 text-end tabular-nums">{number(row.quantity)}</td>
+                        <td className="px-3 py-2 text-end text-muted-foreground tabular-nums">
+                          {number(row.reserved_quantity)}
+                        </td>
+                        <td className="px-3 py-2 text-end font-semibold tabular-nums">
                           {number(row.available_quantity)}
-                        </span>
-                      </span>
-                      <span>
-                        {t.columns.stock}:{" "}
-                        <span className="tabular-nums">{number(row.quantity)}</span>
-                      </span>
-                      <span>
-                        {t.columns.reserved}:{" "}
-                        <span className="tabular-nums">{number(row.reserved_quantity)}</span>
-                      </span>
-                    </>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </>
+                        </td>
+                        <td className="px-4 py-2">
+                          <StockStatusBadge
+                            status={row.stock_status}
+                            label={t.status[row.stock_status]}
+                          />
+                        </td>
+                        <td className="hidden px-3 py-2 text-end text-muted-foreground tabular-nums xl:table-cell">
+                          {number(row.low_stock_threshold)}
+                        </td>
+                        <td className="hidden px-4 py-2 whitespace-nowrap text-muted-foreground xl:table-cell">
+                          {date(row.updated_at)}
+                        </td>
+                        <td className="px-4 py-2">
+                          <div className="flex justify-end gap-1.5">{actions(row)}</div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Phones: compact rows with the key numbers */}
+              <ul className="divide-y overflow-hidden rounded-2xl border bg-card md:hidden">
+                {result.rows.map((row) => (
+                  <li key={row.product_id} className="grid gap-2 px-3 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="min-w-0 flex-1 text-sm">{product(row, "md")}</div>
+                      <div className="flex shrink-0 gap-1.5">{actions(row)}</div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      <StockStatusBadge
+                        status={row.stock_status}
+                        label={t.status[row.stock_status]}
+                      />
+                      {row.inventory_id !== null && (
+                        <>
+                          <span>
+                            {t.columns.available}:{" "}
+                            <span className="font-semibold text-foreground tabular-nums">
+                              {number(row.available_quantity)}
+                            </span>
+                          </span>
+                          <span>
+                            {t.columns.stock}:{" "}
+                            <span className="tabular-nums">{number(row.quantity)}</span>
+                          </span>
+                          <span>
+                            {t.columns.reserved}:{" "}
+                            <span className="tabular-nums">{number(row.reserved_quantity)}</span>
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </>
+          }
+        />
       )}
 
       <Pagination

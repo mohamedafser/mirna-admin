@@ -17,6 +17,7 @@ import {
   validateImageFile,
   type ImageFileError,
 } from "./images";
+import { slugify } from "./slug";
 import {
   hasFieldErrors,
   isUuid,
@@ -93,8 +94,16 @@ function mapDbError(
       if (detail.includes("slug")) return { field: "slug", code: "slugTaken" };
       break;
     case "23503": // foreign_key_violation
+      if (detail.includes("parent_id")) return { field: "parentId", code: "parentInvalid" };
       return { field: "categoryId", code: "categoryInvalid" };
     case "23514": // check_violation
+      // Subcategory rules (migration 022: trigger + categories_parent_not_self).
+      if (detail.includes("category:has_subcategories")) {
+        return { field: "parentId", code: "parentHasChildren" };
+      }
+      if (detail.includes("category:parent_is_subcategory") || detail.includes("parent_not_self")) {
+        return { field: "parentId", code: "parentInvalid" };
+      }
       if (detail.includes("compare_at_price")) {
         return { field: "compareAtPrice", code: "compareAtNotHigher" };
       }
@@ -146,6 +155,7 @@ export async function saveCategory(
   const version = String(data.get("updatedAt") ?? "");
   const input = readCategory(data);
   const fieldErrors = validateCategory(input);
+  if (id && input.parentId === id) fieldErrors.parentId = "parentInvalid";
 
   const file = data.get("image");
   const upload = file instanceof File && file.size > 0 ? file : null;
@@ -165,6 +175,7 @@ export async function saveCategory(
     description: input.description || null,
     sort_order: parseSortOrder(input.sortOrder) ?? 0,
     is_active: input.isActive,
+    parent_id: input.parentId || null,
   };
 
   let categoryId: string;
@@ -253,6 +264,64 @@ export async function saveCategory(
     warning,
     at: Date.now(),
   };
+}
+
+export type CreateSubcategoryResult =
+  | { ok: true; id: string; name: string }
+  | { ok: false; error: CatalogueFormError | CatalogueFieldError };
+
+/**
+ * Creates an active subcategory under a top-level category from the product
+ * form ("+ New subcategory"). The slug comes from the name; when it's taken,
+ * the parent's slug is appended ("winter-kids"), then a number.
+ */
+export async function createSubcategory(
+  parentId: string,
+  rawName: string,
+): Promise<CreateSubcategoryResult> {
+  if (!(await getAdminOrNull())) return { ok: false, error: "forbidden" };
+  const name = rawName.trim();
+  const nameError = validateCategory({
+    name,
+    slug: slugify(name) || "x",
+    description: "",
+    sortOrder: "0",
+    isActive: true,
+    parentId,
+  });
+  if (nameError.name) return { ok: false, error: nameError.name };
+  if (nameError.parentId || !isUuid(parentId)) return { ok: false, error: "parentInvalid" };
+
+  const supabase = await createClient();
+  const { data: parent, error: parentError } = await supabase
+    .from("categories")
+    .select("slug, parent_id")
+    .eq("id", parentId)
+    .maybeSingle();
+  if (parentError) {
+    log("read parent category", parentError);
+    return { ok: false, error: parentError.code ? "unexpected" : "network" };
+  }
+  if (!parent || parent.parent_id) return { ok: false, error: "parentInvalid" };
+
+  const base = slugify(name);
+  if (!base) return { ok: false, error: "slugInvalid" };
+  const candidates = [base, `${base}-${parent.slug}`, ...[2, 3, 4].map((n) => `${base}-${n}`)];
+  for (const slug of candidates) {
+    const { data: created, error } = await supabase
+      .from("categories")
+      .insert({ name, slug, parent_id: parentId, is_active: true, sort_order: 0 })
+      .select("id, name")
+      .single();
+    if (!error) {
+      refresh();
+      return { ok: true, id: created.id, name: created.name };
+    }
+    if (error.code === "23505") continue; // slug taken: try the next one
+    const mapped = mapDbError(error, "create subcategory");
+    return { ok: false, error: "form" in mapped ? mapped.form : mapped.code };
+  }
+  return { ok: false, error: "slugTaken" };
 }
 
 export async function setCategoryActive(id: string, active: boolean): Promise<ActionResult> {

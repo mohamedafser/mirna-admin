@@ -78,6 +78,16 @@ export function ListToolbar({
     );
   }
 
+  // The page already has both renderings (ListViews), so the view changes
+  // without a server request: replaceState updates useSearchParams directly.
+  function switchView(option: "list" | "grid") {
+    const next = new URLSearchParams(window.location.search);
+    if (option === "grid") next.set("view", "grid");
+    else next.delete("view");
+    const query = next.toString();
+    window.history.replaceState(null, "", query ? `${pathname}?${query}` : pathname);
+  }
+
   function searchNow(value: string) {
     clearTimeout(timer.current);
     navigate({ q: value.trim() });
@@ -175,10 +185,14 @@ export function ListToolbar({
                   aria-pressed={view === option}
                   aria-label={label}
                   title={label}
-                  onClick={() => navigate({ view: option === "grid" ? "grid" : "" }, true)}
+                  onClick={() => switchView(option)}
                   className={cn(
-                    "inline-flex w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground",
-                    view === option && "bg-foreground text-background hover:text-background",
+                    "inline-flex w-9 items-center justify-center rounded-lg transition-colors",
+                    // Exclusive classes: cn() doesn't dedupe, so a shared
+                    // hover:text-* would recolour the selected icon to match its fill.
+                    view === option
+                      ? "bg-foreground text-background"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
                 >
                   <Icon aria-hidden className="size-4" />

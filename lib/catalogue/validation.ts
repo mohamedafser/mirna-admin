@@ -29,6 +29,8 @@ export type CatalogueFieldError =
   | "categoryRequired"
   | "categoryInvalid"
   | "categoryInactive"
+  | "parentInvalid"
+  | "parentHasChildren"
   | "descriptionTooLong"
   | "shortDescriptionTooLong"
   | "sortOrderInvalid"
@@ -70,6 +72,8 @@ export interface CategoryInput {
   description: string;
   sortOrder: string;
   isActive: boolean;
+  /** "" = top-level category. */
+  parentId: string;
 }
 
 export type CategoryFieldErrors = Partial<
@@ -83,6 +87,7 @@ export function readCategory(data: FormData): CategoryInput {
     description: text(data, "description"),
     sortOrder: text(data, "sortOrder"),
     isActive: data.get("isActive") === "on",
+    parentId: text(data, "parentId"),
   };
 }
 
@@ -101,6 +106,7 @@ export function validateCategory(input: CategoryInput): CategoryFieldErrors {
     errors.description = "descriptionTooLong";
   }
   if (parseSortOrder(input.sortOrder) === null) errors.sortOrder = "sortOrderInvalid";
+  if (input.parentId && !UUID_PATTERN.test(input.parentId)) errors.parentId = "parentInvalid";
   return compact(errors);
 }
 

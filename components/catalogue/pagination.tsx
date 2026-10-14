@@ -1,8 +1,8 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import Link from "next/link";
 import { buttonClassName } from "@/components/ui/button";
 import { format } from "@/lib/i18n/messages";
 import { cn } from "@/lib/utils/cn";
+import { ViewLink } from "./view-link";
 
 interface Labels {
   previous: string;
@@ -57,14 +57,14 @@ export function Pagination({
     );
     const className = buttonClassName({ variant: "outline", size: "sm", className: "h-9" });
     return enabled ? (
-      <Link
+      <ViewLink
         href={href(target)}
         rel={next ? "next" : "prev"}
         aria-label={label}
         className={className}
       >
         {content}
-      </Link>
+      </ViewLink>
     ) : (
       <span
         aria-disabled="true"

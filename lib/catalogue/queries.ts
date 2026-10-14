@@ -37,8 +37,13 @@ export type CategoryRow = Category & { productCount: number };
 
 export interface CategoryOption {
   id: string;
+  /** Display label: "Women › Abaya" for a subcategory. */
   name: string;
+  /** The category's own name ("Abaya"). */
+  shortName: string;
   isActive: boolean;
+  /** null = top-level category. */
+  parentId: string | null;
 }
 
 export type ProductListRow = Pick<
@@ -145,12 +150,40 @@ export const listCategoryOptions = cache(async (): Promise<CategoryOption[]> => 
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("categories")
-    .select("id, name, is_active")
+    .select("id, name, is_active, parent_id")
     .order("sort_order", { ascending: true })
     .order("name", { ascending: true });
   if (error) fail("category options", error);
-  return data.map(({ id, name, is_active }) => ({ id, name, isActive: is_active }));
+  const options = data.map(({ id, name, is_active, parent_id }) => ({
+    id,
+    name,
+    shortName: name,
+    isActive: is_active,
+    parentId: parent_id,
+  }));
+  // Tree order: each top-level category, then its subcategories ("Women › Abaya").
+  const byId = new Map(options.map((option) => [option.id, option]));
+  const label = (option: CategoryOption) => {
+    const parent = option.parentId ? byId.get(option.parentId) : undefined;
+    return parent ? `${parent.name} › ${option.name}` : option.name;
+  };
+  const roots = options.filter((option) => !option.parentId || !byId.has(option.parentId));
+  return roots.flatMap((root) => [
+    { ...root, name: label(root) },
+    ...options
+      .filter((option) => option.parentId === root.id)
+      .map((child) => ({ ...child, name: label(child) })),
+  ]);
 });
+
+/**
+ * Ids a category filter matches: the category plus its subcategories, so
+ * filtering by "Women" also lists products filed under Women › Winter.
+ */
+export async function categoryFilterIds(id: string): Promise<string[]> {
+  const options = await listCategoryOptions();
+  return [id, ...options.filter((option) => option.parentId === id).map((option) => option.id)];
+}
 
 // ---------------------------------------------------------------------------
 // Products
@@ -177,7 +210,7 @@ export async function listProducts(params: ListParams): Promise<Page<ProductList
     query = query.or(`name.ilike.${pattern},sku.ilike.${pattern},slug.ilike.${pattern}`);
   }
   if (params.status !== "all") query = query.eq("is_active", params.status === "active");
-  if (params.category) query = query.eq("category_id", params.category);
+  if (params.category) query = query.in("category_id", await categoryFilterIds(params.category));
 
   const { data, error, count } = await query.range(...pageRange(params.page, PRODUCT_PAGE_SIZE));
   if (error) fail("products", error);

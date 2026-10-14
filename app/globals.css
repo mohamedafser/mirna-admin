@@ -284,6 +284,13 @@
     transform: translateX(var(--drawer-from, -100%));
   }
 }
+/* Dialogs rise in slightly as they fade in. */
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+}
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -302,6 +309,18 @@ dialog.drawer[open]::backdrop {
 @layer base {
   * {
     border-color: var(--color-border);
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Selected text in the brand colours. */
+  ::selection {
+    background-color: var(--color-primary);
+    color: var(--color-primary-foreground);
   }
 
   body {

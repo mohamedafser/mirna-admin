@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { CatalogueImage } from "@/components/catalogue/catalogue-image";
 import { ListToolbar } from "@/components/catalogue/list-toolbar";
+import { ListViews } from "@/components/catalogue/list-views";
 import { Pagination } from "@/components/catalogue/pagination";
 import { StatusBadge } from "@/components/catalogue/status-badge";
 import { StatusToggle } from "@/components/catalogue/status-toggle";
@@ -107,8 +108,14 @@ async function Products({
     const count = available(product);
     return count === null ? "—" : format(p.availableCount, { count: number(count) });
   };
+  // Full path for subcategories ("Women › Winter"), from the category options.
+  const categoryLabel = new Map(categories.map((option) => [option.id, option.name]));
   const category = (product: ProductListRow) =>
-    product.category ? <bdi>{product.category.name}</bdi> : p.noCategory;
+    product.category ? (
+      <bdi>{categoryLabel.get(product.category.id) ?? product.category.name}</bdi>
+    ) : (
+      p.noCategory
+    );
   const editLink = (product: ProductListRow) => (
     <Link
       href={href(product.id)}
@@ -181,182 +188,197 @@ async function Products({
             />
           )}
         </Card>
-      ) : params.view === "grid" ? (
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {result.rows.map((product) => (
-            <li
-              key={product.id}
-              className="group flex flex-col overflow-hidden rounded-2xl border bg-card transition-colors hover:border-primary/40"
-            >
-              <Link href={href(product.id)} className="relative block" tabIndex={-1} aria-hidden>
-                <CatalogueImage
-                  src={product.image?.public_url ?? null}
-                  alt=""
-                  sizes="(min-width: 1280px) 230px, (min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
-                  className="w-full rounded-none border-0 border-b"
-                />
-                <span className="absolute start-2 top-2">{status(product.is_active)}</span>
-              </Link>
-              <div className="flex flex-1 flex-col gap-1 p-3">
-                <Link
-                  href={href(product.id)}
-                  className="line-clamp-2 text-sm leading-snug font-medium group-hover:underline"
-                >
-                  <bdi>{product.name}</bdi>
-                </Link>
-                <p className="truncate font-mono text-xs text-muted-foreground" dir="ltr">
-                  {product.sku}
-                </p>
-                <p className="truncate text-xs text-muted-foreground">{category(product)}</p>
-                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                  {stockBadge(product)}
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    {availableText(product)}
-                  </span>
-                </div>
-                <div className="mt-auto flex items-end justify-between gap-2 pt-2">
-                  <span className="min-w-0 text-sm">{price(product)}</span>
-                  <StatusToggle
-                    compact
-                    kind="product"
-                    id={product.id}
-                    name={product.name}
-                    active={product.is_active}
-                  />
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
       ) : (
-        <>
-          {/* Tablet / desktop: table */}
-          <div className="hidden overflow-hidden rounded-2xl border bg-card md:block">
-            <table className="w-full text-sm">
-              <caption className="sr-only">{messages.nav.products}</caption>
-              <thead className="caps border-b text-[0.625rem] text-muted-foreground">
-                <tr>
-                  <th scope="col" className="px-4 py-3 text-start font-medium">
-                    {p.columns.name}
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-start font-medium">
-                    {p.columns.sku}
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-end font-medium">
-                    {p.columns.price}
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-end font-medium">
-                    {p.columns.available}
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-start font-medium">
-                    {p.columns.stock}
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-start font-medium">
-                    {p.columns.status}
-                  </th>
-                  <th scope="col" className="hidden px-4 py-3 text-start font-medium xl:table-cell">
-                    {p.columns.updated}
-                  </th>
-                  <th scope="col" className="w-0 px-4 py-3 text-end font-medium">
-                    <span className="sr-only">{p.columns.actions}</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {result.rows.map((product) => (
-                  <tr key={product.id} className="transition-colors hover:bg-accent/60">
-                    <td className="px-4 py-2">
-                      <Link href={href(product.id)} className="group flex items-center gap-3">
-                        <CatalogueImage
-                          src={product.image?.public_url ?? null}
-                          alt=""
-                          sizes="40px"
-                          className="size-10"
-                        />
-                        <span className="min-w-0">
-                          <span className="line-clamp-1 font-medium group-hover:underline">
-                            <bdi>{product.name}</bdi>
-                          </span>
-                          <span className="line-clamp-1 text-xs text-muted-foreground">
-                            {category(product)}
-                          </span>
-                        </span>
-                      </Link>
-                    </td>
-                    <td className="px-4 py-2 font-mono text-xs whitespace-nowrap" dir="ltr">
-                      {product.sku}
-                    </td>
-                    <td className="px-4 py-2 text-end">{price(product)}</td>
-                    <td className="px-4 py-2 text-end font-medium tabular-nums">
-                      {available(product) === null ? "—" : number(available(product)!)}
-                    </td>
-                    <td className="px-4 py-2 whitespace-nowrap">{stockBadge(product)}</td>
-                    <td className="px-4 py-2">{status(product.is_active)}</td>
-                    <td className="hidden px-4 py-2 whitespace-nowrap text-muted-foreground xl:table-cell">
-                      {date(product.updated_at)}
-                    </td>
-                    <td className="px-4 py-2">
-                      <div className="flex justify-end gap-1.5">
-                        {editLink(product)}
-                        <StatusToggle
-                          compact
-                          kind="product"
-                          id={product.id}
-                          name={product.name}
-                          active={product.is_active}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Phones: compact rows */}
-          <ul className="divide-y overflow-hidden rounded-2xl border bg-card md:hidden">
-            {result.rows.map((product) => (
-              <li key={product.id}>
-                <Link
-                  href={href(product.id)}
-                  className="flex items-center gap-3 px-3 py-2.5 active:bg-muted/40"
+        <ListViews
+          grid={
+            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {result.rows.map((product) => (
+                <li
+                  key={product.id}
+                  className="group flex flex-col overflow-hidden rounded-2xl border bg-card transition-[border-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-card"
                 >
-                  <CatalogueImage
-                    src={product.image?.public_url ?? null}
-                    alt=""
-                    sizes="48px"
-                    className="size-12"
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="line-clamp-1 text-sm font-medium">
-                      <bdi>{product.name}</bdi>
-                    </span>
-                    <span
-                      className="block truncate font-mono text-xs text-muted-foreground"
-                      dir="ltr"
-                    >
-                      {product.sku}
-                    </span>
-                    <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-                      {price(product)}
+                  <Link
+                    href={href(product.id)}
+                    className="relative block"
+                    tabIndex={-1}
+                    aria-hidden
+                  >
+                    <CatalogueImage
+                      src={product.image?.public_url ?? null}
+                      alt=""
+                      sizes="(min-width: 1280px) 230px, (min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
+                      className="w-full rounded-none border-0 border-b"
+                    />
+                    <span className="absolute start-2 top-2 flex rounded-md bg-card shadow-card">
                       {status(product.is_active)}
                     </span>
-                    <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  </Link>
+                  <div className="flex flex-1 flex-col gap-1 p-3">
+                    <Link
+                      href={href(product.id)}
+                      className="line-clamp-2 text-sm leading-snug font-medium group-hover:underline"
+                    >
+                      <bdi>{product.name}</bdi>
+                    </Link>
+                    <p className="truncate font-mono text-xs text-muted-foreground" dir="ltr">
+                      {product.sku}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">{category(product)}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
                       {stockBadge(product)}
                       <span className="text-xs text-muted-foreground tabular-nums">
                         {availableText(product)}
                       </span>
-                    </span>
-                  </span>
-                  <ChevronRight
-                    aria-hidden
-                    className="size-4 shrink-0 text-muted-foreground rtl:-scale-x-100"
-                  />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </>
+                    </div>
+                    <div className="mt-auto flex items-end justify-between gap-2 pt-2">
+                      <span className="min-w-0 text-sm">{price(product)}</span>
+                      <StatusToggle
+                        compact
+                        kind="product"
+                        id={product.id}
+                        name={product.name}
+                        active={product.is_active}
+                      />
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          }
+          list={
+            <>
+              {/* Tablet / desktop: table */}
+              <div className="hidden overflow-hidden rounded-2xl border bg-card md:block">
+                <table className="w-full text-sm">
+                  <caption className="sr-only">{messages.nav.products}</caption>
+                  <thead className="caps border-b text-[0.625rem] text-muted-foreground">
+                    <tr>
+                      <th scope="col" className="px-4 py-3 text-start font-medium">
+                        {p.columns.name}
+                      </th>
+                      <th scope="col" className="px-4 py-3 text-start font-medium">
+                        {p.columns.sku}
+                      </th>
+                      <th scope="col" className="px-4 py-3 text-end font-medium">
+                        {p.columns.price}
+                      </th>
+                      <th scope="col" className="px-4 py-3 text-end font-medium">
+                        {p.columns.available}
+                      </th>
+                      <th scope="col" className="px-4 py-3 text-start font-medium">
+                        {p.columns.stock}
+                      </th>
+                      <th scope="col" className="px-4 py-3 text-start font-medium">
+                        {p.columns.status}
+                      </th>
+                      <th
+                        scope="col"
+                        className="hidden px-4 py-3 text-start font-medium xl:table-cell"
+                      >
+                        {p.columns.updated}
+                      </th>
+                      <th scope="col" className="w-0 px-4 py-3 text-end font-medium">
+                        <span className="sr-only">{p.columns.actions}</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {result.rows.map((product) => (
+                      <tr key={product.id} className="transition-colors hover:bg-accent/60">
+                        <td className="px-4 py-2">
+                          <Link href={href(product.id)} className="group flex items-center gap-3">
+                            <CatalogueImage
+                              src={product.image?.public_url ?? null}
+                              alt=""
+                              sizes="40px"
+                              className="size-10"
+                            />
+                            <span className="min-w-0">
+                              <span className="line-clamp-1 font-medium group-hover:underline">
+                                <bdi>{product.name}</bdi>
+                              </span>
+                              <span className="line-clamp-1 text-xs text-muted-foreground">
+                                {category(product)}
+                              </span>
+                            </span>
+                          </Link>
+                        </td>
+                        <td className="px-4 py-2 font-mono text-xs whitespace-nowrap" dir="ltr">
+                          {product.sku}
+                        </td>
+                        <td className="px-4 py-2 text-end">{price(product)}</td>
+                        <td className="px-4 py-2 text-end font-medium tabular-nums">
+                          {available(product) === null ? "—" : number(available(product)!)}
+                        </td>
+                        <td className="px-4 py-2 whitespace-nowrap">{stockBadge(product)}</td>
+                        <td className="px-4 py-2">{status(product.is_active)}</td>
+                        <td className="hidden px-4 py-2 whitespace-nowrap text-muted-foreground xl:table-cell">
+                          {date(product.updated_at)}
+                        </td>
+                        <td className="px-4 py-2">
+                          <div className="flex justify-end gap-1.5">
+                            {editLink(product)}
+                            <StatusToggle
+                              compact
+                              kind="product"
+                              id={product.id}
+                              name={product.name}
+                              active={product.is_active}
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Phones: compact rows */}
+              <ul className="divide-y overflow-hidden rounded-2xl border bg-card md:hidden">
+                {result.rows.map((product) => (
+                  <li key={product.id}>
+                    <Link
+                      href={href(product.id)}
+                      className="flex items-center gap-3 px-3 py-2.5 active:bg-muted/40"
+                    >
+                      <CatalogueImage
+                        src={product.image?.public_url ?? null}
+                        alt=""
+                        sizes="48px"
+                        className="size-12"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="line-clamp-1 text-sm font-medium">
+                          <bdi>{product.name}</bdi>
+                        </span>
+                        <span
+                          className="block truncate font-mono text-xs text-muted-foreground"
+                          dir="ltr"
+                        >
+                          {product.sku}
+                        </span>
+                        <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                          {price(product)}
+                          {status(product.is_active)}
+                        </span>
+                        <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                          {stockBadge(product)}
+                          <span className="text-xs text-muted-foreground tabular-nums">
+                            {availableText(product)}
+                          </span>
+                        </span>
+                      </span>
+                      <ChevronRight
+                        aria-hidden
+                        className="size-4 shrink-0 text-muted-foreground rtl:-scale-x-100"
+                      />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </>
+          }
+        />
       )}
 
       <Pagination

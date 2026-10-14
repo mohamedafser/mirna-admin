@@ -57,7 +57,7 @@ export function Dialog({
       }}
       className={cn(
         "m-auto mb-0 max-h-[92dvh] w-full max-w-none overflow-y-auto rounded-t-2xl border bg-card p-0 text-card-foreground shadow-card sm:mb-auto sm:max-w-lg sm:rounded-2xl",
-        "backdrop:bg-black/40 backdrop:backdrop-blur-[2px] open:animate-[fade-in_160ms_ease-out]",
+        "backdrop:bg-black/40 backdrop:backdrop-blur-[2px] open:animate-[dialog-in_200ms_cubic-bezier(0.2,0.8,0.2,1)]",
         className,
       )}
     >
