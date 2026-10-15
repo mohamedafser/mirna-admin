@@ -5,8 +5,10 @@ import {
   LayoutDashboard,
   Package,
   Settings,
+  Shapes,
   ShieldCheck,
   ShoppingCart,
+  SlidersHorizontal,
   UserRound,
   Users,
   type LucideIcon,
@@ -25,6 +27,8 @@ export type AdminSectionKey =
   | "dashboard"
   | "products"
   | "categories"
+  | "productTypes"
+  | "attributes"
   | "inventory"
   | "orders"
   | "customers"
@@ -59,6 +63,22 @@ export const adminSections: readonly AdminSection[] = [
     key: "products",
     segment: "products",
     icon: Package,
+    inNav: true,
+    available: true,
+    group: "catalogue",
+  },
+  {
+    key: "productTypes",
+    segment: "product-types",
+    icon: Shapes,
+    inNav: true,
+    available: true,
+    group: "catalogue",
+  },
+  {
+    key: "attributes",
+    segment: "attributes",
+    icon: SlidersHorizontal,
     inNav: true,
     available: true,
     group: "catalogue",

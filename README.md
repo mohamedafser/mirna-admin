@@ -172,6 +172,10 @@ All schema changes are migrations; never edit production tables by hand.
 | 016 | `…16_cart.sql`                     | Storefront cart (Phase 9): `cart_items` (customer, product, quantity 1–99; unique per customer + product; **no price column**), own-rows-only RLS, active-product insert check; `product_availability()` returns a yes/no per active product (no stock numbers) for anon + authenticated                                                                                                 |
 | 017 | `…17_checkout.sql`                 | Checkout (storefront Phase 11): `orders.checkout_key` + unique `(user_id, checkout_key)`; `place_order()` (SECURITY DEFINER, authenticated only): one transaction that locks the cart, re-validates active products/stock/address, prices from `products`, compares the shown total, writes `orders` + `order_items` snapshots, then clears the cart. No stock reservation/deduction yet |
 | 018 | `…18_order_status_transitions.sql` | `orders_guard_status` trigger: API roles may only move PENDING → CONFIRMED → PROCESSING → SHIPPED → DELIVERED, or cancel before shipping; DELIVERED/CANCELLED are final (REFUNDED reserved for later)                                                                                                                                                                                    |
+| 023 | `…23_product_attributes.sql`       | Phase 17 product types & attributes: `product_types`, `attributes`, `attribute_values`, `product_type_attributes`, `product_attributes`, nullable `products.product_type_id`; integrity triggers; `set_product_type_attributes()` / `set_attribute_values()` / `set_product_attributes()` (SECURITY INVOKER); admin-only RLS. Additive, re-runnable                                      |
+| 024 | `…24_product_variants.sql`         | Phase 18 variants: `product_variants`, `variant_attribute_values`, `variant_inventory`, `inventory_adjustments.variant_id`; SKU unique across products + variants; `generate_product_variants()`, `adjust_variant_inventory()`; product stock = sum of active variants (trigger); admin-only RLS                                                                                         |
+| 025 | `…25_variants_safeupdate_fix.sql`  | Replaces `generate_product_variants()` without a temp table: 024 cleared it with a bare `DELETE`, which Supabase's pg-safeupdate rejects for API calls (`21000`). Same behaviour and grants                                                                                                                                                                                              |
+| 026 | `…26_inventory_variant_alerts.sql` | Inventory list: appends `variant_low_stock`, `variant_out_of_stock`, `variant_alerts`, `variant_skus` to `inventory_overview` (nothing removed); `inventory_variant_summary()` (SECURITY INVOKER) for the tiles. Admin-only, additive                                                                                                                                                    |
 
 Design notes:
 
@@ -280,7 +284,7 @@ Anonymous and customer uploads are rejected by Storage RLS policies (migrations 
 └──────────┴───────────────────────────────────────────────┘
 ```
 
-- **Sections** are defined once in `config/admin-nav.ts`: Dashboard, **Catalogue** (Categories, Products), **Inventory** (Stock levels), Orders, Customers, Admins, Settings (+ Profile from the user menu). Sections with the same `group` render under one sidebar heading. That file drives the sidebar, the mobile drawer, breadcrumbs, page titles and the placeholder route.
+- **Sections** are defined once in `config/admin-nav.ts`: Dashboard, **Catalogue** (Categories, Products, Product types, Attributes), **Inventory** (Stock levels), Orders, Customers, Admins, Settings (+ Profile from the user menu). Sections with the same `group` render under one sidebar heading. That file drives the sidebar, the mobile drawer, breadcrumbs, page titles and the placeholder route.
 - **Collapsible sidebar** (md+): collapses to an icon rail; collapsed items show their label as a tooltip. The choice is stored in a cookie and applied before first paint (`lib/sidebar.ts`).
 - **Language / theme** are header popovers (`LocaleMenu`, `ThemeMenu`).
 - **Placeholders:** Orders, Customers and Settings render "Coming soon" through `app/[lang]/admin/[section]`. To build a real section, add its own folder (e.g. `app/[lang]/admin/products/`), which takes precedence over `[section]`, and set `available: true`.
@@ -418,6 +422,54 @@ List, filters (category, stock status, product status), search (name/SKU) and pa
 - **Status:** buttons offer only the allowed next steps. Cancelling asks for confirmation. `updateOrderStatus` re-checks the admin and the workflow (`lib/orders/rules.ts`), then updates with the admin's own session (`eq("status", from)`, so a stale page gets "changed by someone else" instead of overwriting). The database rejects invalid moves anyway (migration 018). `updated_at` is set by the existing trigger. Admins can only change `status`: totals and items have no update grant.
 - **Payment status:** shown as "Not paid online". There is no payment integration or payment column yet, so nothing is recorded.
 - **Not included:** customer order history, refunds, shipping integration, payment gateway, coupons, notifications, stock reservation or deduction.
+
+## Product types & attributes (Phase 17)
+
+A generic attribute engine: products of any category describe themselves through configurable attributes instead of hard-coded columns (no `size`, `color` or `length` fields on `products`).
+
+| Route                        | Purpose                                                                                     |
+| ---------------------------- | ------------------------------------------------------------------------------------------- |
+| `/product-types`             | List, search, filter by status, activate/deactivate, delete (only while no product uses it) |
+| `/product-types/new`, `[id]` | Name, slug, description, active + default attributes (required flag, display order)         |
+| `/attributes`                | List, search, filter by data type / status, activate/deactivate, delete (only while unused) |
+| `/attributes/new`, `[id]`    | Name, code, data type, unit (NUMBER), multiple values (SELECT/COLOR), reusable values       |
+
+- **Data types:** `SELECT` (reusable values, optionally several per product), `TEXT`, `NUMBER` (optional unit, exact decimal), `BOOLEAN`, `COLOR` (reusable values with a `#RRGGBB` swatch).
+- **Reusable values** are edited in the attribute form (add, rename, reorder, activate/deactivate, remove). A value used by a product can't be removed, only deactivated (FK `ON DELETE RESTRICT`). Names are unique per attribute, case-insensitively.
+- **Product form:** an optional **Product type** loads that type's default attributes in order, with required markers. **Product-level overrides:** extra attributes can be added for one product only (and removed); values already entered stay when the type changes (as extras), so nothing is lost silently. Existing products keep `product_type_id = NULL` and work as before.
+- **Saving:** the product is saved first, then `set_product_attributes()` sets the type and replaces its values in one transaction and re-checks required attributes. If that step fails the admin gets a warning (the product itself was saved). Inactive types / attributes / values can't be newly chosen, but a product keeps the ones it already has; a deactivated attribute never blocks saving.
+- **Validation** is shared by the forms and the Server Actions (`lib/attributes/rules.ts`); the database is final: CHECK constraints, unique keys, composite FK (a value must belong to its attribute), triggers (value column must match the data type; single-choice attributes take one value; an attribute used by products can't change data type or drop "multiple"; values only for SELECT/COLOR, COLOR needs a swatch).
+- **Security:** all five tables are admin-only (RLS via `private.is_admin()` + explicit grants; anon has no grant). The three functions are `SECURITY INVOKER`, check `is_admin()`, and are not executable by anon. No service-role key is used. The storefront gets read access in a later phase.
+- **Before the migration is applied** the product pages keep working: the attribute section is hidden and attribute saving is skipped.
+- **Not in this phase:** variant generation, variant stock, cart, checkout and order changes.
+
+Manual test checklist: create/edit/deactivate/delete (unused) attributes of each data type; add, rename, reorder, deactivate and remove values (removing a used value is refused); create a type with required + optional attributes and reorder them; create a product with that type (required missing → error), add an extra attribute, change type (values kept as extras), edit again; an inactive value already on a product stays selectable; existing untyped products still save. Repeat in English/Arabic, light/dark, 320–1920 px. A non-admin account sees none of these tables.
+
+## Product variants & variant stock (Phase 18)
+
+Route: `/[lang]/admin/products/[id]/variants` (linked from the product page header, the product form's Inventory section and the Inventory list).
+
+- **Generation:** variant options are the product's **multi-value SELECT / COLOR attributes** (Phase 17) with the values selected on the product, e.g. Size {S, M, L} × Colour {Red, Blue} = 6 combinations. The generator lists every combination, marks existing ones, and creates only the ones the admin selects. **Regenerating only ever adds**: existing variants (SKU, price, image, stock, history) are never changed or removed. Variants whose values no longer match the product's options are flagged "Not in current options" and kept. Nothing is hard-coded per product kind.
+- **Per variant:** SKU (suggested from the product SKU + value names, editable, unique case-insensitively across **all products and variants**), price and optional compare-at price (product currency, exact decimals, compare-at > price), image (one of the product's images; deleting the image just clears it), active status, stock, reserved and low-stock threshold.
+- **List:** search by SKU or option values, filter by stock status and active status, server-side pagination (25 per page, `?page=`), stock / reserved / available columns, stock badge, edit, adjust stock, history, activate/deactivate, delete. Delete only works for a variant with no stock and no stock history. Otherwise deactivate it.
+- **Stock:** `variant_inventory` holds one row per variant. Quantities change only through `adjust_variant_inventory()`, which uses the same rules, error codes and Adjust dialog as product stock: row lock, never below 0 or below reserved, "set" refuses to overwrite a concurrent change, and an audit row is written to `inventory_adjustments` (`variant_id`). The stock history page shows a Variant column and supports `?variant=<id>`. Reserved units are shown read-only. They will be set by the server-side order flow in a later phase.
+- **Simple products** (no variants) are unchanged and keep using `inventory` + `adjust_inventory()`.
+- **Products with variants:** their `inventory` row is **derived** (quantity and reserved = sums over active variants, kept in sync by triggers), so the storefront's `product_availability()` and checkout keep working without changes. `adjust_inventory()` refuses manual product-level changes for them (`inventory:has_variants`), and the product form shows a link instead of stock fields.
+- **Existing stock is never lost:** when a product that has stock gets its **first** variants, the admin must choose which new variant receives those units. They are moved in the same transaction and recorded as "Moved from product stock" (`variant_migration`). Product-level reserved units block the move. The migration itself changes no existing rows.
+- **Security:** all variant tables and the `variant_inventory_overview` view are admin-only (RLS + `is_admin()`). Admins have **no INSERT grant** on variants (combinations are only created by `generate_product_variants()`, `SECURITY DEFINER` + `is_admin()`), can't change a variant's combination, and can update only `low_stock_threshold` on `variant_inventory`. Anon has no access. No service-role key is used.
+- **Not in this phase:** cart, checkout, payments and orders still work per product.
+
+Apply migration **024 before deploying** this version: the stock-history page reads the new `variant_id` column.
+
+**Inventory list with variants** (migration 026, apply before deploying: the list reads its new columns):
+
+- Products with variants expand in place (chevron on tablet/desktop, a disclosure on phones) to show up to 10 variants, active ones first and lowest available stock first, each with stock / reserved / available, status, threshold, last stock change, **Adjust** and **History**. A link opens the variants page when there are more.
+- Product rows show **"N variants out" / "N variants low"** badges (active variants only), so a sold-out size can't hide behind a healthy total.
+- **Variant alerts** tile and **Variants → Need attention** filter (`?variants=attention`) list products with at least one active variant low or out of stock; their variants open automatically.
+- Search also matches **variant SKUs** (the matching product opens on its variants).
+- Refreshed tiles: icons, a combined "Units on hand / reserved" tile, and status tiles that toggle their filter on a second click.
+
+Manual test checklist: give a product two multi-value attributes; generate some combinations (with existing product stock → choose the receiving variant; total stays the same and history shows the move); generate again (only new ones offered); edit SKU (duplicate of any product/variant SKU refused), price, compare-at (≤ price refused), image; adjust a variant (increase/decrease/set, below reserved refused); filter/search; deactivate (product total drops) and delete (only when empty and without history); a simple product still adjusts normally. Repeat in English/Arabic, light/dark, 320–1920 px. A customer account sees no variant data.
 
 ## Internationalization
 

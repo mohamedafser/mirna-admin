@@ -20,10 +20,30 @@ import { isStockStatus, type StockStatus } from "./rules";
 
 export const INVENTORY_PAGE_SIZE = 25;
 export const HISTORY_PAGE_SIZE = 20;
+/** Variants shown under a product in the list (the rest are on its variants page). */
+export const VARIANT_PREVIEW_SIZE = 10;
 
 export type InventoryRow = Database["public"]["Views"]["inventory_overview"]["Row"];
+export type VariantStockRow = Pick<
+  Database["public"]["Views"]["variant_inventory_overview"]["Row"],
+  | "variant_id"
+  | "product_id"
+  | "sku"
+  | "label"
+  | "is_active"
+  | "image_url"
+  | "inventory_id"
+  | "quantity"
+  | "reserved_quantity"
+  | "available_quantity"
+  | "low_stock_threshold"
+  | "stock_status"
+  | "stock_updated_at"
+>;
 export type AdjustmentRow = Tables<"inventory_adjustments"> & {
   admin: { full_name: string | null } | null;
+  /** Set for a variant's adjustment. */
+  variant: { sku: string } | null;
 };
 
 export interface InventoryParams {
@@ -33,6 +53,8 @@ export interface InventoryParams {
   category: string;
   /** Product status: active (default), inactive or all. */
   product: "active" | "inactive" | "all";
+  /** "attention" = only products with an active variant low on or out of stock. */
+  variants: "attention" | "";
   page: number;
   /** Presentation only (not a query input). */
   view: "list" | "grid";
@@ -54,6 +76,7 @@ export function parseInventoryParams(
     stock: isStockStatus(stock) ? stock : "",
     category: isUuid(category) ? category : "",
     product: product === "inactive" || product === "all" ? product : "active",
+    variants: first(searchParams.variants) === "attention" ? "attention" : "",
     page: Number.isFinite(page) && page > 0 ? page : 1,
     view: first(searchParams.view) === "grid" ? "grid" : "list",
   };
@@ -75,8 +98,12 @@ export async function listInventory(params: InventoryParams): Promise<Page<Inven
     .order("product_id", { ascending: true });
 
   const pattern = searchPattern(params.q);
-  if (pattern) query = query.or(`name.ilike.${pattern},sku.ilike.${pattern}`);
+  // Variant SKUs too: searching "DRS-1-M-RED" finds its product.
+  if (pattern) {
+    query = query.or(`name.ilike.${pattern},sku.ilike.${pattern},variant_skus.ilike.${pattern}`);
+  }
   if (params.stock) query = query.eq("stock_status", params.stock);
+  if (params.variants) query = query.gt("variant_alerts", 0);
   if (params.category) query = query.in("category_id", await categoryFilterIds(params.category));
   if (params.product !== "all") query = query.eq("product_active", params.product === "active");
 
@@ -113,6 +140,63 @@ export async function getInventorySummary(includeInactive: boolean): Promise<Inv
   };
 }
 
+export interface VariantStockSummary {
+  /** Products with at least one active variant low on or out of stock. */
+  productsWithAlerts: number;
+  lowStock: number;
+  outOfStock: number;
+}
+
+/** Variant alert totals (active variants only), in one database call. */
+export async function getVariantStockSummary(
+  includeInactive: boolean,
+): Promise<VariantStockSummary> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .rpc("inventory_variant_summary", { p_include_inactive: includeInactive })
+    .single();
+  if (error) fail("variant stock summary", error);
+  return {
+    productsWithAlerts: Number(data.products_with_alerts),
+    lowStock: Number(data.low_stock_variants),
+    outOfStock: Number(data.out_of_stock_variants),
+  };
+}
+
+/**
+ * The first VARIANT_PREVIEW_SIZE variants of each listed product, by product
+ * id: active ones first, lowest available stock first (what needs attention
+ * leads). One small query per product with variants, in parallel.
+ */
+export async function listVariantStock(
+  productIds: string[],
+): Promise<Map<string, VariantStockRow[]>> {
+  const supabase = await createClient();
+  const results = await Promise.all(
+    productIds.map((productId) =>
+      supabase
+        .from("variant_inventory_overview")
+        .select(
+          `variant_id, product_id, sku, label, is_active, image_url, inventory_id, quantity,
+           reserved_quantity, available_quantity, low_stock_threshold, stock_status,
+           stock_updated_at`,
+        )
+        .eq("product_id", productId)
+        .order("is_active", { ascending: false })
+        .order("available_quantity", { ascending: true, nullsFirst: true })
+        .order("sort_order", { ascending: true })
+        .order("variant_id", { ascending: true })
+        .limit(VARIANT_PREVIEW_SIZE),
+    ),
+  );
+  const byProduct = new Map<string, VariantStockRow[]>();
+  results.forEach(({ data, error }, index) => {
+    if (error) fail("variant stock", error);
+    byProduct.set(productIds[index], data);
+  });
+  return byProduct;
+}
+
 /** One product's inventory (memoised per request). */
 export const getInventoryItem = cache(async (productId: string): Promise<InventoryRow | null> => {
   const supabase = await createClient();
@@ -125,18 +209,27 @@ export const getInventoryItem = cache(async (productId: string): Promise<Invento
   return data;
 });
 
-/** Adjustment history for one product, newest first, with the admin's name. */
+/**
+ * Adjustment history for one product (product- and variant-level), newest
+ * first, with the admin's name and the variant's SKU. `variantId` narrows it
+ * to one variant.
+ */
 export async function listAdjustments(
   productId: string,
   page: number,
+  variantId?: string,
 ): Promise<Page<AdjustmentRow>> {
   const supabase = await createClient();
-  const { data, error, count } = await supabase
+  let query = supabase
     .from("inventory_adjustments")
-    .select("*, admin:profiles!inventory_adjustments_created_by_fkey(full_name)", {
-      count: "exact",
-    })
-    .eq("product_id", productId)
+    .select(
+      `*, admin:profiles!inventory_adjustments_created_by_fkey(full_name),
+       variant:product_variants!inventory_adjustments_variant_id_fkey(sku)`,
+      { count: "exact" },
+    )
+    .eq("product_id", productId);
+  if (variantId) query = query.eq("variant_id", variantId);
+  const { data, error, count } = await query
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
     .range(...pageRange(page, HISTORY_PAGE_SIZE));

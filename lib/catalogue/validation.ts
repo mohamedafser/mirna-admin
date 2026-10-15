@@ -44,6 +44,8 @@ export type CatalogueFieldError =
   | "imageType"
   | "imageSize"
   | "imageEmpty"
+  | "productTypeInvalid"
+  | "productTypeInactive"
   | MoneyError;
 
 export function isUuid(value: unknown): value is string {
@@ -130,7 +132,9 @@ export interface ProductInput {
   lowStockThreshold: string;
 }
 
-export type ProductFieldErrors = Partial<Record<keyof ProductInput, CatalogueFieldError>>;
+export type ProductFieldErrors = Partial<
+  Record<keyof ProductInput | "productTypeId", CatalogueFieldError>
+>;
 
 export function readProduct(data: FormData): ProductInput {
   return {

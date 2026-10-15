@@ -20,9 +20,18 @@ export function Breadcrumbs() {
   // Readable names for nested pages instead of raw ids.
   function childLabel(section: string, segment: string): string {
     if (section === "products") {
+      if (segment === "variants") return messages.variants.title;
       return segment === "new"
         ? messages.catalogue.products.new
         : messages.catalogue.products.details;
+    }
+    if (section === "product-types") {
+      const t = messages.attributes.types;
+      return segment === "new" ? t.create : t.edit;
+    }
+    if (section === "attributes") {
+      const t = messages.attributes.attrs;
+      return segment === "new" ? t.create : t.edit;
     }
     if (section === "inventory") return messages.inventory.history.title;
     if (section === "orders") return messages.orders.detailCrumb;

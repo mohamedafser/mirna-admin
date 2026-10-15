@@ -1,4 +1,4 @@
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Layers } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -13,8 +13,11 @@ import { Badge } from "@/components/ui/badge";
 import { buttonClassName } from "@/components/ui/button";
 import { PageSkeleton } from "@/components/ui/states";
 import { supportedCurrencies } from "@/config/region";
+import { getAttributeCatalog, getProductAttributes } from "@/lib/attributes/queries";
+import type { SavedProductAttributes } from "@/lib/attributes/rules";
 import { requireAdmin } from "@/lib/auth/dal";
 import { getProduct, listCategoryOptions, type ProductDetail } from "@/lib/catalogue/queries";
+import { getVariantCount } from "@/lib/variants/queries";
 import { getInventoryItem, type InventoryRow } from "@/lib/inventory/queries";
 import { isUuid } from "@/lib/catalogue/validation";
 import { formatDateTime } from "@/lib/format";
@@ -37,7 +40,12 @@ export default async function ProductPage({ params }: PageProps<"/[lang]/admin/p
 }
 
 /** Only the fields the form edits are sent to the client. */
-function editableProduct(product: ProductDetail, stock: InventoryRow | null): EditableProduct {
+function editableProduct(
+  product: ProductDetail,
+  stock: InventoryRow | null,
+  attributes: SavedProductAttributes | null,
+  variantCount: number,
+): EditableProduct {
   const { id, name, slug, sku, category_id, short_description, description } = product;
   const { price, compare_at_price, currency_code, is_active, updated_at } = product;
   return {
@@ -62,6 +70,8 @@ function editableProduct(product: ProductDetail, stock: InventoryRow | null): Ed
             updatedAt: stock.updated_at,
           }
         : null,
+    attributes,
+    variantCount,
   };
 }
 
@@ -81,11 +91,15 @@ async function ProductDetailView({
   const { id } = await params;
   if (!isUuid(id)) notFound();
 
-  const [product, categories, stock] = await Promise.all([
-    getProduct(id),
-    listCategoryOptions(),
-    getInventoryItem(id),
-  ]);
+  const [product, categories, stock, attributeCatalog, attributes, variantCount] =
+    await Promise.all([
+      getProduct(id),
+      listCategoryOptions(),
+      getInventoryItem(id),
+      getAttributeCatalog(),
+      getProductAttributes(id),
+      getVariantCount(id),
+    ]);
   if (!product) notFound();
 
   const t = messages.catalogue;
@@ -138,6 +152,13 @@ async function ProductDetailView({
             })}
           </p>
         </div>
+        <Link
+          href={`/${locale}/admin/products/${product.id}/variants`}
+          className={buttonClassName({ variant: "outline", size: "sm" })}
+        >
+          <Layers aria-hidden />
+          {variantCount > 0 ? format(p.variantsNamed, { count: variantCount }) : p.variants}
+        </Link>
         <StatusToggle
           kind="product"
           id={product.id}
@@ -147,7 +168,8 @@ async function ProductDetailView({
       </div>
 
       <ProductForm
-        product={editableProduct(product, stock)}
+        product={editableProduct(product, stock, attributes, variantCount)}
+        attributeCatalog={attributeCatalog}
         categories={categories}
         currencies={[
           ...new Set([product.currency_code, region.currencyCode, ...supportedCurrencies]),

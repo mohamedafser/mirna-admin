@@ -3,10 +3,17 @@
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import { refresh } from "next/cache";
+import { loadAttributeCatalog, loadProductAttributes } from "@/lib/attributes/queries";
+import {
+  readProductAttributes,
+  validateProductAttributes,
+  type ProductAttributeError,
+  type ProductAttributeRow,
+} from "@/lib/attributes/rules";
 import { getAdminOrNull } from "@/lib/auth/dal";
 import { parseWholeNumber } from "@/lib/inventory/rules";
 import { parseMoney } from "@/lib/money";
-import type { Database } from "@/lib/supabase/database.types";
+import type { Database, Json } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 import {
   ALT_TEXT_MAX_LENGTH,
@@ -45,7 +52,11 @@ type Supabase = SupabaseClient<Database>;
 export type CatalogueFormError = "forbidden" | "notFound" | "conflict" | "network" | "unexpected";
 
 export type CatalogueWarning =
-  "imageUploadFailed" | "imageCleanupFailed" | "stockNotSaved" | "stockConflict";
+  | "imageUploadFailed"
+  | "imageCleanupFailed"
+  | "stockNotSaved"
+  | "stockConflict"
+  | "attributesNotSaved";
 
 export interface FormResult<Fields> {
   status: "idle" | "success" | "error";
@@ -60,7 +71,10 @@ export interface FormResult<Fields> {
 }
 
 export type CategoryFormResult = FormResult<CategoryFieldErrors>;
-export type ProductFormResult = FormResult<ProductFieldErrors>;
+export type ProductFormResult = FormResult<ProductFieldErrors> & {
+  /** Attribute value errors, by attribute id. */
+  attributeErrors?: Record<string, ProductAttributeError>;
+};
 
 export type ActionResult =
   | { ok: true; warning?: CatalogueWarning }
@@ -347,6 +361,31 @@ export async function saveProduct(
 
   const supabase = await createClient();
 
+  // Product type + attribute values, checked against a fresh copy of the
+  // attribute catalog (null until migration 023 is applied: skipped).
+  const attributeInput = readProductAttributes(data);
+  const catalog = await loadAttributeCatalog(supabase);
+  let attributeRows: ProductAttributeRow[] | null = null;
+  if (catalog) {
+    const saved = id && isUuid(id) ? await loadProductAttributes(supabase, id) : null;
+    const checked = validateProductAttributes(
+      attributeInput.productTypeId,
+      attributeInput.entries,
+      catalog,
+      saved,
+    );
+    if (checked.typeError || hasFieldErrors(checked.errors)) {
+      return {
+        ...fieldFailure<ProductFieldErrors>(
+          checked.typeError ? { productTypeId: checked.typeError } : {},
+        ),
+        attributeErrors: checked.errors,
+      };
+    }
+    attributeRows = checked.rows;
+  }
+  const productTypeId = attributeInput.productTypeId || null;
+
   // Category must exist; a new or changed category must also be active.
   const { data: category, error: categoryError } = await supabase
     .from("categories")
@@ -403,7 +442,9 @@ export async function saveProduct(
     if (error) return dbFailure(error, "update product");
     if (!updated) return formError("conflict");
     const expected = parseWholeNumber(String(data.get("expectedStock") ?? ""));
-    const warning = await saveProductInventory(supabase, id, input, expected, "updated");
+    const warning =
+      (await saveProductInventory(supabase, id, input, expected, "updated")) ??
+      (await saveProductAttributes(supabase, id, productTypeId, attributeRows));
     refresh();
     return { status: "success", fieldErrors: {}, id, mode: "updated", warning, at: Date.now() };
   }
@@ -415,7 +456,9 @@ export async function saveProduct(
     .single();
   if (error) return dbFailure(error, "create product");
   // The insert trigger already created the inventory row with 0 units.
-  const warning = await saveProductInventory(supabase, created.id, input, 0, "created");
+  const warning =
+    (await saveProductInventory(supabase, created.id, input, 0, "created")) ??
+    (await saveProductAttributes(supabase, created.id, productTypeId, attributeRows));
   return {
     status: "success",
     fieldErrors: {},
@@ -440,6 +483,16 @@ async function saveProductInventory(
   expected: number | null,
   mode: "created" | "updated",
 ): Promise<CatalogueWarning | undefined> {
+  // Products with variants: stock is managed per variant (migration 024), and
+  // the product row is their derived total, so the form's values are ignored.
+  if (mode === "updated") {
+    const { count, error } = await supabase
+      .from("product_variants")
+      .select("id", { count: "exact", head: true })
+      .eq("product_id", productId);
+    if (!error && (count ?? 0) > 0) return undefined;
+  }
+
   const stock = parseWholeNumber(input.stock) ?? 0;
   const threshold = parseWholeNumber(input.lowStockThreshold) ?? 0;
 
@@ -488,6 +541,28 @@ async function saveProductInventory(
   if (error.message === "inventory:conflict" || error.code === "40001") return "stockConflict";
   log("set stock", error);
   return "stockNotSaved";
+}
+
+/**
+ * Sets the product's type and replaces its attribute values in one database
+ * transaction (set_product_attributes re-checks required attributes). Runs
+ * after the product itself was saved; a failure is reported as a warning.
+ */
+async function saveProductAttributes(
+  supabase: Supabase,
+  productId: string,
+  productTypeId: string | null,
+  rows: ProductAttributeRow[] | null,
+): Promise<CatalogueWarning | undefined> {
+  if (rows === null) return undefined;
+  const { error } = await supabase.rpc("set_product_attributes", {
+    p_product_id: productId,
+    p_product_type_id: productTypeId,
+    p_values: rows as unknown as Json,
+  });
+  if (!error) return undefined;
+  log("set product attributes", error);
+  return "attributesNotSaved";
 }
 
 export async function setProductActive(id: string, active: boolean): Promise<ActionResult> {

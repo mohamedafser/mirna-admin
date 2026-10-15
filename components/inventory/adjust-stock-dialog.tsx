@@ -38,6 +38,8 @@ import { ThresholdForm } from "./threshold-form";
 
 export interface AdjustableItem {
   productId: string;
+  /** Set for a variant: adjusts that variant's stock (same rules and history). */
+  variantId?: string;
   name: string;
   sku: string;
   quantity: number;
@@ -191,6 +193,7 @@ function AdjustForm({ item, onDone }: { item: AdjustableItem; onDone: () => void
     <div className="grid gap-5">
       <form onSubmit={onSubmit} noValidate className="grid gap-5">
         <input type="hidden" name="productId" value={item.productId} readOnly />
+        {item.variantId && <input type="hidden" name="variantId" value={item.variantId} readOnly />}
         <input type="hidden" name="type" value={type} readOnly />
         <input type="hidden" name="expectedQuantity" value={item.quantity} readOnly />
 
@@ -456,7 +459,11 @@ function AdjustForm({ item, onDone }: { item: AdjustableItem; onDone: () => void
           />
         </summary>
         <div className="border-t px-3.5 py-3">
-          <ThresholdForm productId={item.productId} threshold={item.threshold} />
+          <ThresholdForm
+            productId={item.productId}
+            variantId={item.variantId}
+            threshold={item.threshold}
+          />
         </div>
       </details>
     </div>

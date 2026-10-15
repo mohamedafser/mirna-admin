@@ -5,7 +5,9 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
+import { setAttributeActive, setProductTypeActive } from "@/lib/attributes/actions";
 import { setCategoryActive, setProductActive } from "@/lib/catalogue/actions";
+import { setVariantActive } from "@/lib/variants/actions";
 import { format } from "@/lib/i18n/messages";
 import { useI18n } from "@/lib/i18n/client";
 
@@ -21,7 +23,7 @@ export function StatusToggle({
   size = "sm",
   compact = false,
 }: {
-  kind: "product" | "category";
+  kind: "product" | "category" | "productType" | "attribute" | "variant";
   id: string;
   name: string;
   active: boolean;
@@ -31,14 +33,26 @@ export function StatusToggle({
 }) {
   const { messages } = useI18n();
   const t = messages.catalogue;
-  const copy = kind === "product" ? t.products : t.categories;
+  const copy = {
+    product: t.products,
+    category: t.categories,
+    productType: messages.attributes.types,
+    attribute: messages.attributes.attrs,
+    variant: messages.variants,
+  }[kind];
   const toast = useToast();
   const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();
 
   function apply(nextActive: boolean) {
     startTransition(async () => {
-      const action = kind === "product" ? setProductActive : setCategoryActive;
+      const action = {
+        product: setProductActive,
+        category: setCategoryActive,
+        productType: setProductTypeActive,
+        attribute: setAttributeActive,
+        variant: setVariantActive,
+      }[kind];
       const result = await action(id, nextActive);
       if (result.ok) {
         toast.success(nextActive ? copy.activated : copy.deactivated);

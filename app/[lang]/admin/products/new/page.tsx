@@ -7,6 +7,7 @@ import { buttonClassName } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState, PageSkeleton } from "@/components/ui/states";
 import { supportedCurrencies } from "@/config/region";
+import { getAttributeCatalog } from "@/lib/attributes/queries";
 import { requireAdmin } from "@/lib/auth/dal";
 import { listCategoryOptions } from "@/lib/catalogue/queries";
 import { getLocale, getMessages } from "@/lib/i18n/server";
@@ -29,7 +30,11 @@ export default async function NewProductPage() {
 async function NewProduct() {
   const [locale, messages] = await Promise.all([getLocale(), getMessages()]);
   await requireAdmin(locale);
-  const [categories, region] = await Promise.all([listCategoryOptions(), getStoreRegion()]);
+  const [categories, region, attributeCatalog] = await Promise.all([
+    listCategoryOptions(),
+    getStoreRegion(),
+    getAttributeCatalog(),
+  ]);
   const p = messages.catalogue.products;
   const hasActiveCategory = categories.some((category) => category.isActive);
 
@@ -52,6 +57,7 @@ async function NewProduct() {
           categories={categories}
           currencies={[...new Set([region.currencyCode, ...supportedCurrencies])]}
           defaultCurrency={region.currencyCode}
+          attributeCatalog={attributeCatalog}
         />
       ) : (
         <Card>

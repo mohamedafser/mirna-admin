@@ -1,14 +1,25 @@
-import { Boxes, History, SearchX } from "lucide-react";
+import {
+  Boxes,
+  CircleCheck,
+  CircleX,
+  History,
+  Layers,
+  Package,
+  SearchX,
+  TriangleAlert,
+  type LucideIcon,
+} from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, type ReactNode } from "react";
 import { CatalogueImage } from "@/components/catalogue/catalogue-image";
 import { ListToolbar } from "@/components/catalogue/list-toolbar";
 import { ListViews } from "@/components/catalogue/list-views";
 import { ViewLink } from "@/components/catalogue/view-link";
 import { Pagination } from "@/components/catalogue/pagination";
 import { AdjustStockDialog, type AdjustableItem } from "@/components/inventory/adjust-stock-dialog";
+import { ExpandableRows } from "@/components/inventory/expandable-rows";
 import { InitializeButton } from "@/components/inventory/initialize-button";
 import { StockStatusBadge } from "@/components/inventory/stock-status-badge";
 import { Badge } from "@/components/ui/badge";
@@ -19,9 +30,12 @@ import { requireAdmin } from "@/lib/auth/dal";
 import { listCategoryOptions } from "@/lib/catalogue/queries";
 import {
   getInventorySummary,
+  getVariantStockSummary,
   listInventory,
+  listVariantStock,
   parseInventoryParams,
   type InventoryRow,
+  type VariantStockRow,
 } from "@/lib/inventory/queries";
 import { STOCK_STATUSES } from "@/lib/inventory/rules";
 import { formatDateTime } from "@/lib/format";
@@ -60,6 +74,9 @@ function adjustable(row: InventoryRow): AdjustableItem | null {
   };
 }
 
+/** Table columns (toggle + 9), for full-width detail rows. */
+const COLUMN_COUNT = 10;
+
 async function Inventory({
   searchParams,
 }: Pick<PageProps<"/[lang]/admin/inventory">, "searchParams">) {
@@ -67,13 +84,19 @@ async function Inventory({
   await requireAdmin(locale);
   const { timezone: timeZone } = await getStoreRegion();
   const params = parseInventoryParams(await searchParams);
+  const includeInactive = params.product !== "active";
 
-  // Three independent queries, in parallel: rows, summary, category filter options.
-  const [result, summary, categories] = await Promise.all([
+  // Independent queries, in parallel: rows, summaries, category filter options.
+  const [result, summary, variantSummary, categories] = await Promise.all([
     listInventory(params),
-    getInventorySummary(params.product !== "active"),
+    getInventorySummary(includeInactive),
+    getVariantStockSummary(includeInactive),
     listCategoryOptions(),
   ]);
+  // Stock per variant for the products on this page that have variants.
+  const variantStock = await listVariantStock(
+    result.rows.filter((row) => row.variant_count > 0).map((row) => row.product_id),
+  );
 
   // Full path for subcategories ("Women › Winter").
   const categoryLabel = new Map(categories.map((option) => [option.id, option.name]));
@@ -81,6 +104,7 @@ async function Inventory({
   const listParams = {
     q: params.q,
     stock: params.stock,
+    variants: params.variants,
     category: params.category,
     product: params.product === "active" ? "" : params.product,
     view: params.view === "grid" ? "grid" : "",
@@ -94,61 +118,241 @@ async function Inventory({
   }
 
   const t = messages.inventory;
+  const tv = t.variantRows;
   const filtered =
-    Boolean(params.q || params.stock || params.category) || params.product !== "active";
+    Boolean(params.q || params.stock || params.variants || params.category) ||
+    params.product !== "active";
   const date = (value: string | null) =>
     value ? formatDateTime(value, locale, { dateStyle: "medium" }, timeZone) : "—";
   const number = (value: number | null) => (value === null ? "—" : value.toLocaleString(locale));
   const historyHref = (row: InventoryRow) => `${basePath}/${row.product_id}`;
-  const filterHref = (stock: string) => {
+  const variantsHref = (row: InventoryRow) =>
+    `/${locale}/admin/products/${row.product_id}/variants`;
+  const filterHref = (changes: Partial<typeof listParams>) => {
     const query = new URLSearchParams(
-      Object.entries({ ...listParams, stock }).filter(([, value]) => value),
+      Object.entries({ ...listParams, ...changes }).filter(([, value]) => value),
     );
     return query.size ? `${basePath}?${query}` : basePath;
   };
+  const variantLabel = (variant: VariantStockRow) => variant.label || variant.sku;
+  // Open a product's variants when they are what the list was narrowed to.
+  const q = params.q.toLowerCase();
+  const expandByDefault = (row: InventoryRow) =>
+    params.variants === "attention" ||
+    Boolean(q && row.variant_skus?.toLowerCase().includes(q) && !row.sku.toLowerCase().includes(q));
 
-  const tiles = [
-    { key: "", label: t.summary.products, value: summary.totalProducts, tone: "" },
-    { key: "in_stock", label: t.status.in_stock, value: summary.inStock, tone: "text-success" },
-    { key: "low_stock", label: t.status.low_stock, value: summary.lowStock, tone: "text-warning" },
+  // -------------------------------------------------------------------------
+  // Summary tiles: each status tile filters the list (click again to clear).
+  // -------------------------------------------------------------------------
+  const tiles: Array<{
+    key: string;
+    label: string;
+    value: number;
+    icon: LucideIcon;
+    tone: string;
+    href?: string;
+    active?: boolean;
+    note?: string;
+  }> = [
     {
-      key: "out_of_stock",
-      label: t.status.out_of_stock,
-      value: summary.outOfStock,
-      tone: "text-error",
+      key: "all",
+      label: t.summary.products,
+      value: summary.totalProducts,
+      icon: Package,
+      tone: "text-muted-foreground",
+      href: filterHref({ stock: "", variants: "" }),
+      active: !params.stock && !params.variants,
+    },
+    ...(
+      [
+        ["in_stock", summary.inStock, CircleCheck, "text-success"],
+        ["low_stock", summary.lowStock, TriangleAlert, "text-warning"],
+        ["out_of_stock", summary.outOfStock, CircleX, "text-error"],
+      ] as const
+    ).map(([status, value, icon, tone]) => ({
+      key: status,
+      label: t.status[status],
+      value,
+      icon,
+      tone,
+      href: filterHref({ stock: params.stock === status ? "" : status }),
+      active: params.stock === status,
+    })),
+    {
+      key: "variants",
+      label: t.summary.variantAlerts,
+      value: variantSummary.productsWithAlerts,
+      icon: Layers,
+      tone: variantSummary.productsWithAlerts > 0 ? "text-warning" : "text-muted-foreground",
+      href: filterHref({ variants: params.variants ? "" : "attention" }),
+      active: params.variants === "attention",
+      note:
+        variantSummary.productsWithAlerts > 0
+          ? format(t.summary.variantAlertsBody, {
+              low: number(variantSummary.lowStock),
+              out: number(variantSummary.outOfStock),
+            })
+          : t.summary.allClear,
+    },
+    {
+      key: "units",
+      label: t.summary.units,
+      value: summary.totalUnits,
+      icon: Boxes,
+      tone: "text-muted-foreground",
+      note: format(t.summary.reservedCount, { count: number(summary.reservedUnits) }),
     },
   ];
+  const tile = (item: (typeof tiles)[number]) => {
+    const body = (
+      <>
+        <span className="flex items-start justify-between gap-2">
+          <span className="caps text-[0.625rem] text-muted-foreground">{item.label}</span>
+          <item.icon aria-hidden className={cn("size-4 shrink-0", item.tone)} />
+        </span>
+        <span
+          className={cn(
+            "mt-1 block text-2xl leading-none font-semibold tabular-nums",
+            item.key !== "all" && item.key !== "units" && item.value > 0 && item.tone,
+          )}
+        >
+          {item.value.toLocaleString(locale)}
+        </span>
+        {item.note && (
+          <span className="mt-1.5 block truncate text-xs text-muted-foreground">{item.note}</span>
+        )}
+      </>
+    );
+    const className = cn(
+      "flex flex-col rounded-xl border bg-card px-3.5 py-3",
+      item.href && "transition-colors hover:border-primary/40",
+      item.active && "border-foreground ring-1 ring-foreground",
+    );
+    return item.href ? (
+      <ViewLink
+        key={item.key}
+        href={item.href}
+        aria-current={item.active ? "true" : undefined}
+        className={className}
+      >
+        {body}
+      </ViewLink>
+    ) : (
+      <div key={item.key} className={className}>
+        {body}
+      </div>
+    );
+  };
+
+  // -------------------------------------------------------------------------
+  // Shared pieces
+  // -------------------------------------------------------------------------
+  const iconLink = (href: string, label: string, title: string, icon: ReactNode) => (
+    <Link
+      href={href}
+      aria-label={label}
+      title={title}
+      className={buttonClassName({ variant: "outline", size: "icon-sm" })}
+    >
+      {icon}
+    </Link>
+  );
 
   const actions = (row: InventoryRow) => {
     const item = adjustable(row);
     if (!item) return <InitializeButton productId={row.product_id} label={t.initialize} />;
     return (
       <>
-        <AdjustStockDialog compact item={item} />
-        <Link
-          href={historyHref(row)}
-          aria-label={format(t.history.linkNamed, { name: row.name })}
-          title={t.history.link}
-          className={buttonClassName({ variant: "outline", size: "icon-sm" })}
-        >
-          <History aria-hidden />
-        </Link>
+        {row.variant_count > 0 ? (
+          // Stock of a product with variants is their total: adjust per variant.
+          iconLink(
+            variantsHref(row),
+            `${t.manageVariants}: ${row.name}`,
+            t.manageVariants,
+            <Layers aria-hidden />,
+          )
+        ) : (
+          <AdjustStockDialog compact item={item} />
+        )}
+        {iconLink(
+          historyHref(row),
+          format(t.history.linkNamed, { name: row.name }),
+          t.history.link,
+          <History aria-hidden />,
+        )}
       </>
     );
   };
+
+  const variantActions = (row: InventoryRow, variant: VariantStockRow) => (
+    <>
+      {variant.inventory_id !== null && (
+        <AdjustStockDialog
+          compact
+          item={{
+            productId: row.product_id,
+            variantId: variant.variant_id,
+            name: `${row.name} · ${variantLabel(variant)}`,
+            sku: variant.sku,
+            quantity: variant.quantity ?? 0,
+            reserved: variant.reserved_quantity ?? 0,
+            threshold: variant.low_stock_threshold ?? 0,
+          }}
+        />
+      )}
+      {iconLink(
+        `${historyHref(row)}?variant=${variant.variant_id}`,
+        format(t.history.linkNamed, { name: `${row.name} · ${variantLabel(variant)}` }),
+        t.history.link,
+        <History aria-hidden />,
+      )}
+    </>
+  );
+
+  /** Variant badges: alerts when some are low / out, otherwise the count. */
+  const variantBadges = (row: InventoryRow) => {
+    if (row.variant_count === 0) return null;
+    if (row.variant_alerts === 0) {
+      return (
+        <Badge className="py-0">
+          <Layers aria-hidden />
+          {format(t.variantCount, { count: row.variant_count })}
+        </Badge>
+      );
+    }
+    return (
+      <>
+        {row.variant_out_of_stock > 0 && (
+          <Badge tone="error" className="py-0">
+            <CircleX aria-hidden />
+            {format(tv.out, { count: row.variant_out_of_stock })}
+          </Badge>
+        )}
+        {row.variant_low_stock > 0 && (
+          <Badge tone="warning" className="py-0">
+            <TriangleAlert aria-hidden />
+            {format(tv.low, { count: row.variant_low_stock })}
+          </Badge>
+        )}
+      </>
+    );
+  };
+
   const product = (row: InventoryRow, size: "sm" | "md") => (
-    <Link href={historyHref(row)} className="group flex min-w-0 items-center gap-3">
-      <CatalogueImage
-        src={row.image_url}
-        alt=""
-        sizes={size === "sm" ? "40px" : "48px"}
-        className={size === "sm" ? "size-10" : "size-12"}
-      />
-      <span className="min-w-0">
-        <span className="line-clamp-1 font-medium group-hover:underline">
+    <div className="flex min-w-0 items-center gap-3">
+      <Link href={historyHref(row)} tabIndex={-1} aria-hidden className="shrink-0">
+        <CatalogueImage
+          src={row.image_url}
+          alt=""
+          sizes={size === "sm" ? "40px" : "48px"}
+          className={size === "sm" ? "size-10" : "size-12"}
+        />
+      </Link>
+      <span className="grid min-w-0 gap-0.5">
+        <Link href={historyHref(row)} className="line-clamp-1 font-medium hover:underline">
           <bdi>{row.name}</bdi>
-        </span>
-        <span className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+        </Link>
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
           {size === "sm" ? (
             <span className="line-clamp-1">
               {row.category_name ? (
@@ -165,10 +369,215 @@ async function Inventory({
             </span>
           )}
           {!row.product_active && <Badge className="py-0">{t.productInactive}</Badge>}
+          {variantBadges(row)}
         </span>
       </span>
-    </Link>
+    </div>
   );
+
+  /** "Showing 10 of 24 variants" + link, when the preview is partial. */
+  const variantFooter = (row: InventoryRow, shown: number) =>
+    row.variant_count > shown ? (
+      <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+        {format(tv.showing, { shown: number(shown), count: number(row.variant_count) })}
+        <Link href={variantsHref(row)} className="font-medium text-foreground hover:underline">
+          {format(tv.viewAll, { count: number(row.variant_count) })}
+        </Link>
+      </span>
+    ) : null;
+
+  const variantName = (row: InventoryRow, variant: VariantStockRow) => (
+    <span className="flex min-w-0 items-center gap-2.5">
+      <CatalogueImage
+        src={variant.image_url ?? row.image_url}
+        alt=""
+        sizes="32px"
+        className="size-8 rounded-md"
+      />
+      <span className="grid min-w-0 gap-0.5">
+        <bdi className="line-clamp-1 font-medium">{variantLabel(variant)}</bdi>
+        {!variant.is_active && (
+          <span>
+            <Badge className="py-0">{tv.inactive}</Badge>
+          </span>
+        )}
+      </span>
+    </span>
+  );
+
+  // -------------------------------------------------------------------------
+  // Table rows (tablet / desktop)
+  // -------------------------------------------------------------------------
+  const numbers = (item: {
+    quantity: number | null;
+    reserved_quantity: number | null;
+    available_quantity: number | null;
+  }) => (
+    <>
+      <td className="px-3 py-2 text-end tabular-nums">{number(item.quantity)}</td>
+      <td className="px-3 py-2 text-end text-muted-foreground tabular-nums">
+        {number(item.reserved_quantity)}
+      </td>
+      <td className="px-3 py-2 text-end font-semibold tabular-nums">
+        {number(item.available_quantity)}
+      </td>
+    </>
+  );
+
+  const tableRow = (row: InventoryRow) => {
+    const variants = variantStock.get(row.product_id) ?? [];
+    const footer = variantFooter(row, variants.length);
+    const details =
+      variants.length === 0 ? null : (
+        <>
+          {variants.map((variant) => (
+            <tr
+              key={variant.variant_id}
+              className={cn(
+                "bg-muted/30 transition-colors hover:bg-accent/60",
+                !variant.is_active && "text-muted-foreground",
+              )}
+            >
+              <td aria-hidden />
+              <td className="max-w-xs py-1.5 ps-6 pe-4">
+                <span className="flex border-s-2 ps-3">{variantName(row, variant)}</span>
+              </td>
+              <td
+                className="hidden px-4 py-1.5 font-mono text-xs whitespace-nowrap lg:table-cell"
+                dir="ltr"
+              >
+                {variant.sku}
+              </td>
+              {numbers(variant)}
+              <td className="px-4 py-1.5">
+                <StockStatusBadge
+                  status={variant.stock_status}
+                  label={t.status[variant.stock_status]}
+                />
+              </td>
+              <td className="hidden px-3 py-1.5 text-end text-muted-foreground tabular-nums xl:table-cell">
+                {number(variant.low_stock_threshold)}
+              </td>
+              <td className="hidden px-4 py-1.5 whitespace-nowrap text-muted-foreground xl:table-cell">
+                {date(variant.stock_updated_at)}
+              </td>
+              <td className="px-4 py-1.5">
+                <div className="flex justify-end gap-1.5">{variantActions(row, variant)}</div>
+              </td>
+            </tr>
+          ))}
+          {footer && (
+            <tr className="bg-muted/30">
+              <td aria-hidden />
+              <td colSpan={COLUMN_COUNT - 1} className="py-2 ps-6 pe-4">
+                <span className="block border-s-2 ps-3">{footer}</span>
+              </td>
+            </tr>
+          )}
+        </>
+      );
+
+    return (
+      <ExpandableRows
+        key={row.product_id}
+        defaultOpen={details !== null && expandByDefault(row)}
+        showLabel={format(tv.show, { name: row.name })}
+        hideLabel={format(tv.hide, { name: row.name })}
+        details={details}
+        cells={
+          <>
+            <td className="max-w-xs py-2 ps-2 pe-4">{product(row, "sm")}</td>
+            <td
+              className="hidden px-4 py-2 font-mono text-xs whitespace-nowrap lg:table-cell"
+              dir="ltr"
+            >
+              {row.sku}
+            </td>
+            {numbers(row)}
+            <td className="px-4 py-2">
+              <StockStatusBadge status={row.stock_status} label={t.status[row.stock_status]} />
+            </td>
+            <td className="hidden px-3 py-2 text-end text-muted-foreground tabular-nums xl:table-cell">
+              {number(row.low_stock_threshold)}
+            </td>
+            <td className="hidden px-4 py-2 whitespace-nowrap text-muted-foreground xl:table-cell">
+              {date(row.updated_at)}
+            </td>
+            <td className="px-4 py-2">
+              <div className="flex justify-end gap-1.5">{actions(row)}</div>
+            </td>
+          </>
+        }
+      />
+    );
+  };
+
+  // -------------------------------------------------------------------------
+  // Phone rows: key numbers, variants in a native disclosure
+  // -------------------------------------------------------------------------
+  const stockFigures = (item: {
+    quantity: number | null;
+    reserved_quantity: number | null;
+    available_quantity: number | null;
+  }) => (
+    <>
+      <span>
+        {t.columns.available}:{" "}
+        <span className="font-semibold text-foreground tabular-nums">
+          {number(item.available_quantity)}
+        </span>
+      </span>
+      <span>
+        {t.columns.stock}: <span className="tabular-nums">{number(item.quantity)}</span>
+      </span>
+      <span>
+        {t.columns.reserved}: <span className="tabular-nums">{number(item.reserved_quantity)}</span>
+      </span>
+    </>
+  );
+
+  const phoneRow = (row: InventoryRow) => {
+    const variants = variantStock.get(row.product_id) ?? [];
+    const footer = variantFooter(row, variants.length);
+    return (
+      <li key={row.product_id} className="grid gap-2 px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1 text-sm">{product(row, "md")}</div>
+          <div className="flex shrink-0 gap-1.5">{actions(row)}</div>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <StockStatusBadge status={row.stock_status} label={t.status[row.stock_status]} />
+          {row.inventory_id !== null && stockFigures(row)}
+        </div>
+        {variants.length > 0 && (
+          <details open={expandByDefault(row)} className="group rounded-lg border bg-muted/30">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-xs font-medium [&::-webkit-details-marker]:hidden">
+              {format(t.variantCount, { count: row.variant_count })}
+              <Layers aria-hidden className="size-3.5 text-muted-foreground" />
+            </summary>
+            <ul className="divide-y border-t">
+              {variants.map((variant) => (
+                <li key={variant.variant_id} className="grid gap-1.5 px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <div className="min-w-0 flex-1 text-sm">{variantName(row, variant)}</div>
+                    <div className="flex shrink-0 gap-1.5">{variantActions(row, variant)}</div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <StockStatusBadge
+                      status={variant.stock_status}
+                      label={t.status[variant.stock_status]}
+                    />
+                    {variant.inventory_id !== null && stockFigures(variant)}
+                  </div>
+                </li>
+              ))}
+            </ul>
+            {footer && <div className="border-t px-3 py-2">{footer}</div>}
+          </details>
+        )}
+      </li>
+    );
+  };
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -187,40 +596,8 @@ async function Inventory({
         )}
       </div>
 
-      {/* Summary: each tile filters the list. */}
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        {tiles.map((tile) => (
-          <ViewLink
-            key={tile.key || "all"}
-            href={filterHref(tile.key)}
-            aria-current={params.stock === tile.key ? "true" : undefined}
-            className={cn(
-              "rounded-xl border bg-card px-3 py-2.5 transition-colors hover:border-primary/40",
-              params.stock === tile.key && "border-foreground",
-            )}
-          >
-            <span className="caps block text-[0.625rem] text-muted-foreground">{tile.label}</span>
-            <span className={cn("block text-xl font-semibold tabular-nums", tile.tone)}>
-              {tile.value.toLocaleString(locale)}
-            </span>
-          </ViewLink>
-        ))}
-        <div className="rounded-xl border bg-card px-3 py-2.5">
-          <span className="caps block text-[0.625rem] text-muted-foreground">
-            {t.summary.units}
-          </span>
-          <span className="block text-xl font-semibold tabular-nums">
-            {summary.totalUnits.toLocaleString(locale)}
-          </span>
-        </div>
-        <div className="rounded-xl border bg-card px-3 py-2.5">
-          <span className="caps block text-[0.625rem] text-muted-foreground">
-            {t.summary.reserved}
-          </span>
-          <span className="block text-xl font-semibold tabular-nums">
-            {summary.reservedUnits.toLocaleString(locale)}
-          </span>
-        </div>
+        {tiles.map(tile)}
       </div>
 
       <ListToolbar
@@ -242,6 +619,14 @@ async function Inventory({
             options: [
               { value: "", label: t.filters.stockAll },
               ...STOCK_STATUSES.map((status) => ({ value: status, label: t.status[status] })),
+            ],
+          },
+          {
+            name: "variants",
+            label: t.filters.variants,
+            options: [
+              { value: "", label: t.filters.variantsAll },
+              { value: "attention", label: t.filters.variantsAttention },
             ],
           },
           {
@@ -299,11 +684,12 @@ async function Inventory({
                     >
                       <bdi>{row.name}</bdi>
                     </Link>
-                    <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                       <span className="truncate font-mono" dir="ltr">
                         {row.sku}
                       </span>
                       {!row.product_active && <Badge className="py-0">{t.productInactive}</Badge>}
+                      {variantBadges(row)}
                     </p>
                     {row.inventory_id !== null ? (
                       <dl className="mt-1 grid grid-cols-3 gap-1 rounded-lg bg-muted/40 px-2 py-1.5 text-center">
@@ -341,13 +727,16 @@ async function Inventory({
           }
           list={
             <>
-              {/* Tablet / desktop: table */}
+              {/* Tablet / desktop: table; products with variants expand in place */}
               <div className="hidden overflow-hidden rounded-2xl border bg-card md:block">
                 <table className="w-full text-sm">
                   <caption className="sr-only">{t.title}</caption>
                   <thead className="caps border-b text-[0.625rem] text-muted-foreground">
                     <tr>
-                      <th scope="col" className="px-4 py-3 text-start font-medium">
+                      <th scope="col" className="w-0 py-3 ps-3 pe-0">
+                        <span className="sr-only">{t.filters.variants}</span>
+                      </th>
+                      <th scope="col" className="py-3 ps-2 pe-4 text-start font-medium">
                         {t.columns.product}
                       </th>
                       <th
@@ -385,78 +774,13 @@ async function Inventory({
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y">
-                    {result.rows.map((row) => (
-                      <tr key={row.product_id} className="transition-colors hover:bg-accent/60">
-                        <td className="max-w-xs px-4 py-2">{product(row, "sm")}</td>
-                        <td
-                          className="hidden px-4 py-2 font-mono text-xs whitespace-nowrap lg:table-cell"
-                          dir="ltr"
-                        >
-                          {row.sku}
-                        </td>
-                        <td className="px-3 py-2 text-end tabular-nums">{number(row.quantity)}</td>
-                        <td className="px-3 py-2 text-end text-muted-foreground tabular-nums">
-                          {number(row.reserved_quantity)}
-                        </td>
-                        <td className="px-3 py-2 text-end font-semibold tabular-nums">
-                          {number(row.available_quantity)}
-                        </td>
-                        <td className="px-4 py-2">
-                          <StockStatusBadge
-                            status={row.stock_status}
-                            label={t.status[row.stock_status]}
-                          />
-                        </td>
-                        <td className="hidden px-3 py-2 text-end text-muted-foreground tabular-nums xl:table-cell">
-                          {number(row.low_stock_threshold)}
-                        </td>
-                        <td className="hidden px-4 py-2 whitespace-nowrap text-muted-foreground xl:table-cell">
-                          {date(row.updated_at)}
-                        </td>
-                        <td className="px-4 py-2">
-                          <div className="flex justify-end gap-1.5">{actions(row)}</div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
+                  {result.rows.map(tableRow)}
                 </table>
               </div>
 
               {/* Phones: compact rows with the key numbers */}
               <ul className="divide-y overflow-hidden rounded-2xl border bg-card md:hidden">
-                {result.rows.map((row) => (
-                  <li key={row.product_id} className="grid gap-2 px-3 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <div className="min-w-0 flex-1 text-sm">{product(row, "md")}</div>
-                      <div className="flex shrink-0 gap-1.5">{actions(row)}</div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                      <StockStatusBadge
-                        status={row.stock_status}
-                        label={t.status[row.stock_status]}
-                      />
-                      {row.inventory_id !== null && (
-                        <>
-                          <span>
-                            {t.columns.available}:{" "}
-                            <span className="font-semibold text-foreground tabular-nums">
-                              {number(row.available_quantity)}
-                            </span>
-                          </span>
-                          <span>
-                            {t.columns.stock}:{" "}
-                            <span className="tabular-nums">{number(row.quantity)}</span>
-                          </span>
-                          <span>
-                            {t.columns.reserved}:{" "}
-                            <span className="tabular-nums">{number(row.reserved_quantity)}</span>
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </li>
-                ))}
+                {result.rows.map(phoneRow)}
               </ul>
             </>
           }
