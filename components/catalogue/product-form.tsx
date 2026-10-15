@@ -16,6 +16,13 @@ import {
   uploadProductImage,
   type ProductFormResult,
 } from "@/lib/catalogue/actions";
+import {
+  readProductAttributes,
+  validateProductAttributes,
+  type AttributeCatalog,
+  type ProductAttributeError,
+  type SavedProductAttributes,
+} from "@/lib/attributes/rules";
 import { validateImageFile } from "@/lib/catalogue/images";
 import { slugify } from "@/lib/catalogue/slug";
 import {
@@ -37,6 +44,7 @@ import { ImageGallery } from "./image-gallery";
 import { Panel } from "./panel";
 import { useUnsavedChanges } from "./use-unsaved-changes";
 import { CategoryPicker, type CategoryChoice } from "./category-picker";
+import { ProductAttributes } from "./product-attributes";
 
 export interface EditableProduct {
   id: string;
@@ -58,6 +66,10 @@ export interface EditableProduct {
     threshold: number;
     updatedAt: string;
   } | null;
+  /** Product type + attribute values (null: attribute tables not set up yet). */
+  attributes: SavedProductAttributes | null;
+  /** > 0: stock is managed per variant (the product row is their total). */
+  variantCount: number;
 }
 
 /** Product and stock are versioned separately; either change reloads the form. */
@@ -79,6 +91,8 @@ interface ProductFormProps {
   categories: CategoryChoice[];
   currencies: readonly string[];
   defaultCurrency: string;
+  /** Product types and attributes (null until migration 023 is applied). */
+  attributeCatalog: AttributeCatalog | null;
   /** Side column content for an existing product (its image manager). */
   aside?: ReactNode;
 }
@@ -135,6 +149,7 @@ function ProductFormFields({
   categories,
   currencies,
   defaultCurrency,
+  attributeCatalog,
   aside,
   dirty,
   setDirty,
@@ -147,6 +162,10 @@ function ProductFormFields({
   const [state, setState] = useState(initialState);
   const [pending, startTransition] = useTransition();
   const [clientErrors, setClientErrors] = useState<ProductFieldErrors | null>(null);
+  const [clientAttributeErrors, setClientAttributeErrors] = useState<Record<
+    string,
+    ProductAttributeError
+  > | null>(null);
   const [name, setName] = useState(product?.name ?? "");
   const [slug, setSlug] = useState(product?.slug ?? "");
   // An existing slug, or one the admin typed, is never overwritten by the name.
@@ -162,6 +181,7 @@ function ProductFormFields({
   const formId = `${id}-form`;
 
   const fieldErrors = clientErrors ?? state.fieldErrors;
+  const attributeErrors = clientAttributeErrors ?? state.attributeErrors ?? {};
   const errorText = (code?: CatalogueFieldError) => {
     if (!code) return undefined;
     if (code === "slugTaken") return t.products.slugTaken;
@@ -243,14 +263,33 @@ function ProductFormFields({
     const form = event.currentTarget;
     const data = new FormData(form);
     const errors = validateProduct(readProduct(data), reserved);
-    if (Object.keys(errors).length > 0) {
+    let attributeIssues: Record<string, ProductAttributeError> = {};
+    if (attributeCatalog) {
+      const input = readProductAttributes(data);
+      const checked = validateProductAttributes(
+        input.productTypeId,
+        input.entries,
+        attributeCatalog,
+        product?.attributes ?? null,
+      );
+      if (checked.typeError) errors.productTypeId = checked.typeError;
+      attributeIssues = checked.errors;
+    }
+    const firstAttribute = Object.keys(attributeIssues)[0];
+    if (Object.keys(errors).length > 0 || firstAttribute) {
       setClientErrors(errors);
-      const first = Object.keys(errors)[0];
+      setClientAttributeErrors(attributeIssues);
+      const first = Object.keys(errors)[0] ?? firstAttribute;
       // Custom dropdowns are found by data-field (their hidden input can't take focus).
-      form.querySelector<HTMLElement>(`[data-field="${first}"], [name="${first}"]`)?.focus();
+      form
+        .querySelector<HTMLElement>(
+          `[data-field="${first}"], [name="${first}"], [data-attribute="${first}"]`,
+        )
+        ?.focus();
       return;
     }
     setClientErrors(null);
+    setClientAttributeErrors(null);
     startTransition(async () => {
       const result = await saveProduct(state, data);
       setState(result);
@@ -377,6 +416,19 @@ function ProductFormFields({
             </Field>
           </Section>
 
+          {attributeCatalog && (
+            <Section title={messages.attributes.product.section}>
+              <ProductAttributes
+                catalog={attributeCatalog}
+                saved={product?.attributes ?? null}
+                errors={attributeErrors}
+                typeError={fieldErrors.productTypeId}
+                disabled={pending}
+                onChange={() => setDirty(true)}
+              />
+            </Section>
+          )}
+
           <Section title={t.products.sections.pricing}>
             <div className="grid gap-4 sm:grid-cols-[1fr_1fr_8rem]">
               <Field id={`${id}-price`} label={f.price} error={errorText(fieldErrors.price)}>
@@ -443,62 +495,84 @@ function ProductFormFields({
           </Section>
 
           <Section title={t.products.sections.inventory}>
-            <input type="hidden" name="expectedStock" value={loadedStock} readOnly />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field
-                id={`${id}-stock`}
-                label={f.stock}
-                hint={
-                  product
-                    ? reserved > 0
-                      ? format(f.stockHintReserved, { reserved })
-                      : f.stockHintEdit
-                    : f.stockHintNew
-                }
-                error={errorText(fieldErrors.stock)}
-              >
-                {(a11y) => (
-                  <Input
-                    {...a11y}
-                    name="stock"
-                    inputMode="numeric"
-                    dir="ltr"
-                    required
-                    autoComplete="off"
-                    disabled={pending}
-                    value={stock}
-                    onChange={(event) => setStock(event.target.value)}
-                  />
-                )}
-              </Field>
-              <Field
-                id={`${id}-threshold`}
-                label={f.lowStockThreshold}
-                hint={f.lowStockThresholdHint}
-                error={errorText(fieldErrors.lowStockThreshold)}
-              >
-                {(a11y) => (
-                  <Input
-                    {...a11y}
-                    name="lowStockThreshold"
-                    inputMode="numeric"
-                    dir="ltr"
-                    required
-                    autoComplete="off"
-                    disabled={pending}
-                    value={threshold}
-                    onChange={(event) => setThreshold(event.target.value)}
-                  />
-                )}
-              </Field>
-            </div>
-            <StockPreview
-              stock={stock}
-              threshold={threshold}
-              reserved={reserved}
-              loadedStock={product ? loadedStock : null}
-              historyHref={product ? `/${locale}/admin/inventory/${product.id}` : null}
-            />
+            {product && product.variantCount > 0 ? (
+              <>
+                {/* Unchanged values keep validation happy; the server skips stock. */}
+                <input type="hidden" name="expectedStock" value={loadedStock} readOnly />
+                <input type="hidden" name="stock" value={loadedStock} readOnly />
+                <input type="hidden" name="lowStockThreshold" value={threshold} readOnly />
+                <div className="flex flex-wrap items-center gap-3 rounded-xl bg-muted/50 px-3.5 py-3 text-sm">
+                  <p className="min-w-0 flex-1 text-muted-foreground">
+                    {format(f.stockByVariants, { count: product.variantCount })}
+                  </p>
+                  <Link
+                    href={`/${locale}/admin/products/${product.id}/variants`}
+                    className={buttonClassName({ variant: "outline", size: "sm" })}
+                  >
+                    {t.products.variants}
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <>
+                <input type="hidden" name="expectedStock" value={loadedStock} readOnly />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field
+                    id={`${id}-stock`}
+                    label={f.stock}
+                    hint={
+                      product
+                        ? reserved > 0
+                          ? format(f.stockHintReserved, { reserved })
+                          : f.stockHintEdit
+                        : f.stockHintNew
+                    }
+                    error={errorText(fieldErrors.stock)}
+                  >
+                    {(a11y) => (
+                      <Input
+                        {...a11y}
+                        name="stock"
+                        inputMode="numeric"
+                        dir="ltr"
+                        required
+                        autoComplete="off"
+                        disabled={pending}
+                        value={stock}
+                        onChange={(event) => setStock(event.target.value)}
+                      />
+                    )}
+                  </Field>
+                  <Field
+                    id={`${id}-threshold`}
+                    label={f.lowStockThreshold}
+                    hint={f.lowStockThresholdHint}
+                    error={errorText(fieldErrors.lowStockThreshold)}
+                  >
+                    {(a11y) => (
+                      <Input
+                        {...a11y}
+                        name="lowStockThreshold"
+                        inputMode="numeric"
+                        dir="ltr"
+                        required
+                        autoComplete="off"
+                        disabled={pending}
+                        value={threshold}
+                        onChange={(event) => setThreshold(event.target.value)}
+                      />
+                    )}
+                  </Field>
+                </div>
+                <StockPreview
+                  stock={stock}
+                  threshold={threshold}
+                  reserved={reserved}
+                  loadedStock={product ? loadedStock : null}
+                  historyHref={product ? `/${locale}/admin/inventory/${product.id}` : null}
+                />
+              </>
+            )}
           </Section>
 
           <Section title={t.products.sections.description}>

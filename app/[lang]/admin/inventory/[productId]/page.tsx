@@ -1,4 +1,4 @@
-import { ArrowLeft, History, Package, PackageX } from "lucide-react";
+import { ArrowLeft, History, Layers, Package, PackageX, X } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -48,14 +48,21 @@ async function InventoryItem({
   const { timezone: timeZone } = await getStoreRegion();
   const { productId } = await params;
   if (!isUuid(productId)) notFound();
-  const pageParam = Number.parseInt(String((await searchParams).page ?? ""), 10);
+  const query = await searchParams;
+  const pageParam = Number.parseInt(String(query.page ?? ""), 10);
   const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
+  // ?variant=<id>: one variant's history (from the Variants page).
+  const variantId = typeof query.variant === "string" && isUuid(query.variant) ? query.variant : "";
 
   const [item, history] = await Promise.all([
     getInventoryItem(productId),
-    listAdjustments(productId, page),
+    listAdjustments(productId, page, variantId || undefined),
   ]);
   if (!item) notFound();
+  // Product with variants: its stock is their total, adjusted per variant.
+  const hasVariants = item.variant_count > 0;
+  const variantsHref = `/${locale}/admin/products/${productId}/variants`;
+  const filteredVariant = variantId ? history.rows[0]?.variant?.sku : undefined;
 
   const t = messages.inventory;
   const h = t.history;
@@ -113,7 +120,13 @@ async function InventoryItem({
           <Package aria-hidden />
           {messages.catalogue.common.edit}
         </Link>
-        {configured && (
+        {hasVariants && (
+          <Link href={variantsHref} className={buttonClassName()}>
+            <Layers aria-hidden />
+            {t.manageVariants}
+          </Link>
+        )}
+        {configured && !hasVariants && (
           <AdjustStockDialog
             item={{
               productId: item.product_id,
@@ -145,11 +158,15 @@ async function InventoryItem({
               {stat(t.columns.available, item.available_quantity, "text-primary")}
             </dl>
             <div className="border-t px-4 py-3 md:border-t-0 md:border-s">
-              <ThresholdForm
-                compact
-                productId={item.product_id}
-                threshold={item.low_stock_threshold ?? 0}
-              />
+              {hasVariants ? (
+                <p className="text-sm text-muted-foreground">{t.managedByVariants}</p>
+              ) : (
+                <ThresholdForm
+                  compact
+                  productId={item.product_id}
+                  threshold={item.low_stock_threshold ?? 0}
+                />
+              )}
             </div>
           </section>
 
@@ -159,6 +176,20 @@ async function InventoryItem({
               {h.title}
               {history.total > 0 && (
                 <Badge className="py-0 tabular-nums">{history.total.toLocaleString(locale)}</Badge>
+              )}
+              {variantId && (
+                <Link
+                  href={basePath}
+                  className="ms-auto inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-normal text-muted-foreground hover:bg-accent hover:text-foreground"
+                >
+                  {filteredVariant && (
+                    <span className="font-mono" dir="ltr">
+                      {filteredVariant}
+                    </span>
+                  )}
+                  <X aria-hidden className="size-3.5" />
+                  <span className="sr-only">{h.allVariants}</span>
+                </Link>
               )}
             </h2>
             {history.total === 0 ? (
@@ -176,6 +207,11 @@ async function InventoryItem({
                         <th scope="col" className="px-4 py-3 text-start font-medium">
                           {h.columns.date}
                         </th>
+                        {hasVariants && (
+                          <th scope="col" className="px-3 py-3 text-start font-medium">
+                            {h.columns.variant}
+                          </th>
+                        )}
                         <th scope="col" className="px-3 py-3 text-end font-medium">
                           {h.columns.before}
                         </th>
@@ -202,6 +238,11 @@ async function InventoryItem({
                               {t.adjust.types[row.adjustment_type]}
                             </span>
                           </td>
+                          {hasVariants && (
+                            <td className="px-3 py-2 font-mono text-xs whitespace-nowrap" dir="ltr">
+                              {row.variant?.sku ?? h.productLevel}
+                            </td>
+                          )}
                           <td className="px-3 py-2 text-end text-muted-foreground tabular-nums">
                             {row.quantity_before}
                           </td>
@@ -263,6 +304,14 @@ async function InventoryItem({
                         </p>
                       )}
                       <p className="text-xs text-muted-foreground">
+                        {row.variant && (
+                          <>
+                            <span className="font-mono" dir="ltr">
+                              {row.variant.sku}
+                            </span>
+                            {" · "}
+                          </>
+                        )}
                         {dateTime(row.created_at)} · <bdi>{admin(row)}</bdi>
                       </p>
                     </li>
@@ -274,7 +323,7 @@ async function InventoryItem({
           {history.pageCount > 1 && (
             <Pagination
               basePath={basePath}
-              params={{}}
+              params={variantId ? { variant: variantId } : {}}
               page={history.page}
               pageCount={history.pageCount}
               pageSize={history.pageSize}

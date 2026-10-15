@@ -13,10 +13,13 @@ import { cn } from "@/lib/utils/cn";
 /** Low-stock threshold editor (whole number >= 0), saved on its own. */
 export function ThresholdForm({
   productId,
+  variantId,
   threshold,
   compact = false,
 }: {
   productId: string;
+  /** Set for a variant's threshold. */
+  variantId?: string;
   threshold: number;
   /** Hide the hint visually (kept for screen readers and as a tooltip). */
   compact?: boolean;
@@ -40,7 +43,7 @@ export function ThresholdForm({
         setError(null);
         startTransition(async () => {
           try {
-            const result = await updateLowStockThreshold(productId, value);
+            const result = await updateLowStockThreshold(productId, value, variantId);
             if (result.ok) toast.success(t.threshold.saved);
             else if (result.error === "thresholdInvalid" || result.error === "thresholdRequired") {
               setError(result.error);
