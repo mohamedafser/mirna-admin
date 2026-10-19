@@ -15,8 +15,11 @@ import { parseMoney } from "@/lib/money";
 import { createClient } from "@/lib/supabase/server";
 import {
   normalizePhone,
+  normalizeSocialUrl,
   parseTaxRate,
   readSettings,
+  SOCIAL_KEYS,
+  toBusinessHours,
   validateSettings,
   type SettingsFieldErrors,
 } from "./rules";
@@ -127,6 +130,15 @@ export async function saveSettings(
     notify_low_stock: input.notifyLowStock,
     notify_order_cancelled: input.notifyOrderCancelled,
     notification_email: input.notificationEmail || null,
+    // Contact information (migration 030), only once its columns exist.
+    ...(input.contactExtras && {
+      contact_whatsapp: input.contactWhatsapp ? normalizePhone(input.contactWhatsapp) : null,
+      business_hours: toBusinessHours(input),
+      contact_published: input.contactPublished,
+      ...Object.fromEntries(
+        SOCIAL_KEYS.map((key) => [`social_${key}`, normalizeSocialUrl(input.social[key], key)]),
+      ),
+    }),
   };
 
   const { data: updated, error } = await supabase

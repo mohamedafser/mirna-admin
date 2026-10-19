@@ -3,6 +3,7 @@ import { cache } from "react";
 import type { Locale } from "@/config/i18n";
 import { activeRegion } from "@/config/region";
 import { createClient } from "@/lib/supabase/server";
+import type { BusinessHours } from "./rules";
 
 /**
  * The single store configuration (store_settings, migration 020), read with
@@ -41,6 +42,18 @@ export interface StoreSettings {
   notify_order_cancelled: boolean;
   notification_email: string | null;
   updated_at: string;
+  /** Contact information (migration 030); defaults below until it's applied. */
+  contact_whatsapp: string | null;
+  business_hours: BusinessHours | null;
+  social_instagram: string | null;
+  social_facebook: string | null;
+  social_tiktok: string | null;
+  social_snapchat: string | null;
+  social_x: string | null;
+  social_youtube: string | null;
+  contact_published: boolean;
+  /** False while migration 030 isn't applied: the contact extras are hidden. */
+  contactExtras: boolean;
 }
 
 /** The market values the rest of the admin app formats and filters with. */
@@ -58,19 +71,46 @@ const COLUMNS = `store_name, logo_url, contact_email, contact_phone,
   min_order_amount::text, max_quantity_per_item, allow_customer_cancellation,
   notify_new_order, notify_low_stock, notify_order_cancelled, notification_email, updated_at`;
 
+const CONTACT_COLUMNS = `contact_whatsapp, business_hours, social_instagram, social_facebook,
+  social_tiktok, social_snapchat, social_x, social_youtube, contact_published`;
+
+const NO_CONTACT_EXTRAS = {
+  contact_whatsapp: null,
+  business_hours: null,
+  social_instagram: null,
+  social_facebook: null,
+  social_tiktok: null,
+  social_snapchat: null,
+  social_x: null,
+  social_youtube: null,
+  contact_published: false,
+  contactExtras: false,
+} satisfies Partial<StoreSettings>;
+
 /** The settings row, or null if it doesn't exist / isn't visible. Throws on failure. */
 export const getStoreSettings = cache(async (): Promise<StoreSettings | null> => {
   const supabase = await createClient();
-  const { data, error } = await supabase.from("store_settings").select(COLUMNS).maybeSingle();
+  const full = await supabase
+    .from("store_settings")
+    .select(`${COLUMNS}, ${CONTACT_COLUMNS}`)
+    .maybeSingle();
+  if (!full.error) {
+    return full.data ? ({ ...full.data, contactExtras: true } as unknown as StoreSettings) : null;
+  }
   // Table not created yet (migration 020 not applied): same as no row.
-  if (error?.code === "PGRST205") return null;
+  if (full.error.code === "PGRST205") return null;
+  // 42703 = undefined column: migration 030 not applied yet.
+  const { data, error } =
+    full.error.code === "42703"
+      ? await supabase.from("store_settings").select(COLUMNS).maybeSingle()
+      : full;
   if (error) {
     console.error(
       `[settings] load failed: code=${error.code || "-"} message=${error.message || "-"}`,
     );
     throw new Error("Unable to load store settings");
   }
-  return data as unknown as StoreSettings | null;
+  return data ? ({ ...data, ...NO_CONTACT_EXTRAS } as unknown as StoreSettings) : null;
 });
 
 /**

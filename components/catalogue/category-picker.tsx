@@ -15,6 +15,8 @@ export interface CategoryChoice {
   id: string;
   /** Own name ("Abaya"). */
   shortName: string;
+  /** Full label ("Women › Abaya"); falls back to shortName. */
+  name?: string;
   isActive: boolean;
   /** null = top-level category. */
   parentId: string | null;
@@ -35,6 +37,7 @@ export function CategoryPicker({
   disabled,
   error,
   onChange,
+  onSelect,
 }: {
   idPrefix: string;
   /** Selectable categories (active, plus the product's current one). */
@@ -43,6 +46,8 @@ export function CategoryPicker({
   disabled: boolean;
   error?: string;
   onChange: () => void;
+  /** The effective category id (subcategory when chosen, else the category). */
+  onSelect?: (categoryId: string) => void;
 }) {
   const { messages } = useI18n();
   const t = messages.catalogue;
@@ -85,6 +90,7 @@ export function CategoryPicker({
       setChildId(result.id);
       setNewName("");
       onChange();
+      onSelect?.(result.id);
       toast.success(format(f.subcategoryCreated, { name: result.name, parent: parent.shortName }));
     });
   }
@@ -108,6 +114,7 @@ export function CategoryPicker({
               setParentId(value);
               setChildId("");
               onChange();
+              onSelect?.(value);
             }}
             options={parents.map((category) => ({ value: category.id, label: label(category) }))}
           />
@@ -128,6 +135,7 @@ export function CategoryPicker({
               onChange={(value) => {
                 setChildId(value);
                 if (value !== NEW) onChange();
+                onSelect?.(value && value !== NEW ? value : parentId);
               }}
               options={[
                 {

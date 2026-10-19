@@ -11,6 +11,12 @@ import {
   type ProductAttributeRow,
 } from "@/lib/attributes/rules";
 import { getAdminOrNull } from "@/lib/auth/dal";
+import { listCurrencies } from "@/lib/currencies/queries";
+import {
+  CURRENCY_PRICES_FIELD,
+  readCurrencyPrices,
+  type PriceRowErrors,
+} from "@/lib/currency/product-prices";
 import { parseWholeNumber } from "@/lib/inventory/rules";
 import { parseMoney } from "@/lib/money";
 import type { Database, Json } from "@/lib/supabase/database.types";
@@ -24,6 +30,7 @@ import {
   validateImageFile,
   type ImageFileError,
 } from "./images";
+import { hasTaxonomy } from "./queries";
 import { slugify } from "./slug";
 import {
   hasFieldErrors,
@@ -31,11 +38,15 @@ import {
   parseSortOrder,
   readCategory,
   readProduct,
+  readTag,
   validateCategory,
   validateProduct,
+  validateTag,
   type CatalogueFieldError,
   type CategoryFieldErrors,
   type ProductFieldErrors,
+  type ProductInput,
+  type TagFieldErrors,
 } from "./validation";
 
 /**
@@ -56,7 +67,10 @@ export type CatalogueWarning =
   | "imageCleanupFailed"
   | "stockNotSaved"
   | "stockConflict"
-  | "attributesNotSaved";
+  | "attributesNotSaved"
+  | "categoriesNotSaved"
+  | "tagsNotSaved"
+  | "pricesNotSaved";
 
 export interface FormResult<Fields> {
   status: "idle" | "success" | "error";
@@ -71,9 +85,12 @@ export interface FormResult<Fields> {
 }
 
 export type CategoryFormResult = FormResult<CategoryFieldErrors>;
+export type TagFormResult = FormResult<TagFieldErrors>;
 export type ProductFormResult = FormResult<ProductFieldErrors> & {
   /** Attribute value errors, by attribute id. */
   attributeErrors?: Record<string, ProductAttributeError>;
+  /** "Prices by currency" errors, by currency code. */
+  priceErrors?: PriceRowErrors;
 };
 
 export type ActionResult =
@@ -104,20 +121,33 @@ function mapDbError(
   const detail = `${error.message} ${error.details ?? ""}`;
   switch (error.code) {
     case "23505": // unique_violation
+      if (detail.includes("tags_name_key")) return { field: "name", code: "tagNameTaken" };
       if (detail.includes("sku")) return { field: "sku", code: "skuTaken" };
       if (detail.includes("slug")) return { field: "slug", code: "slugTaken" };
       break;
     case "23503": // foreign_key_violation
       if (detail.includes("parent_id")) return { field: "parentId", code: "parentInvalid" };
+      if (detail.includes("product_category:")) {
+        return { field: "categoryIds", code: "categoriesInvalid" };
+      }
+      if (detail.includes("product_tag:")) return { field: "tagIds", code: "tagsInvalid" };
       return { field: "categoryId", code: "categoryInvalid" };
     case "23514": // check_violation
       // Subcategory rules (migration 022: trigger + categories_parent_not_self).
       if (detail.includes("category:has_subcategories")) {
         return { field: "parentId", code: "parentHasChildren" };
       }
-      if (detail.includes("category:parent_is_subcategory") || detail.includes("parent_not_self")) {
+      if (
+        detail.includes("category:parent_is_subcategory") ||
+        detail.includes("category:parent_cycle") ||
+        detail.includes("parent_not_self")
+      ) {
         return { field: "parentId", code: "parentInvalid" };
       }
+      if (detail.includes("product_category:inactive")) {
+        return { field: "categoryIds", code: "categoriesInactive" };
+      }
+      if (detail.includes("product_tag:inactive")) return { field: "tagIds", code: "tagsInactive" };
       if (detail.includes("compare_at_price")) {
         return { field: "compareAtPrice", code: "compareAtNotHigher" };
       }
@@ -292,6 +322,8 @@ export type CreateSubcategoryResult =
 export async function createSubcategory(
   parentId: string,
   rawName: string,
+  /** Position among its siblings (the structure view appends at the end). */
+  sortOrder = 0,
 ): Promise<CreateSubcategoryResult> {
   if (!(await getAdminOrNull())) return { ok: false, error: "forbidden" };
   const name = rawName.trim();
@@ -299,11 +331,12 @@ export async function createSubcategory(
     name,
     slug: slugify(name) || "x",
     description: "",
-    sortOrder: "0",
+    sortOrder: String(sortOrder),
     isActive: true,
     parentId,
   });
   if (nameError.name) return { ok: false, error: nameError.name };
+  if (nameError.sortOrder) return { ok: false, error: nameError.sortOrder };
   if (nameError.parentId || !isUuid(parentId)) return { ok: false, error: "parentInvalid" };
 
   const supabase = await createClient();
@@ -324,7 +357,7 @@ export async function createSubcategory(
   for (const slug of candidates) {
     const { data: created, error } = await supabase
       .from("categories")
-      .insert({ name, slug, parent_id: parentId, is_active: true, sort_order: 0 })
+      .insert({ name, slug, parent_id: parentId, is_active: true, sort_order: sortOrder })
       .select("id, name")
       .single();
     if (!error) {
@@ -338,6 +371,80 @@ export async function createSubcategory(
   return { ok: false, error: "slugTaken" };
 }
 
+/** One category's new place in the structure view. */
+export interface CategoryPlacement {
+  id: string;
+  sortOrder: number;
+  /** Only when the parent changes: the new parent id, or null for top-level. */
+  parentId?: string | null;
+}
+
+export type ArrangeResult =
+  { ok: true } | { ok: false; error: CatalogueFormError | "parentInvalid" | "parentHasChildren" };
+
+const MAX_PLACEMENTS = 500;
+
+/**
+ * Saves a drag-and-drop change: new sort orders and, for a moved category, its
+ * new parent. Parent changes go first, so the hierarchy trigger (two levels,
+ * no cycles) rejects an invalid move before any order is touched.
+ */
+export async function arrangeCategories(placements: CategoryPlacement[]): Promise<ArrangeResult> {
+  if (!(await getAdminOrNull())) return { ok: false, error: "forbidden" };
+  if (
+    !Array.isArray(placements) ||
+    placements.length === 0 ||
+    placements.length > MAX_PLACEMENTS ||
+    new Set(placements.map((placement) => placement?.id)).size !== placements.length ||
+    !placements.every(
+      (placement) =>
+        isUuid(placement?.id) &&
+        parseSortOrder(String(placement.sortOrder)) !== null &&
+        (placement.parentId === undefined ||
+          placement.parentId === null ||
+          (isUuid(placement.parentId) && placement.parentId !== placement.id)),
+    )
+  ) {
+    return { ok: false, error: "unexpected" };
+  }
+
+  const supabase = await createClient();
+  const failure = (error: PostgrestError): ArrangeResult => {
+    const mapped = mapDbError(error, "arrange categories");
+    if ("form" in mapped) return { ok: false, error: mapped.form };
+    return {
+      ok: false,
+      error: mapped.code === "parentHasChildren" ? "parentHasChildren" : "parentInvalid",
+    };
+  };
+
+  // Moves one at a time (each is checked against the hierarchy so far).
+  for (const { id, sortOrder, parentId } of placements) {
+    if (parentId === undefined) continue;
+    const { data, error } = await supabase
+      .from("categories")
+      .update({ parent_id: parentId, sort_order: sortOrder })
+      .eq("id", id)
+      .select("id")
+      .maybeSingle();
+    if (error) return failure(error);
+    if (!data) return { ok: false, error: "notFound" };
+  }
+
+  // Order-only updates don't touch parent_id, so they skip the hierarchy lock.
+  const results = await Promise.all(
+    placements
+      .filter((placement) => placement.parentId === undefined)
+      .map(({ id, sortOrder }) =>
+        supabase.from("categories").update({ sort_order: sortOrder }).eq("id", id),
+      ),
+  );
+  const failed = results.find((result) => result.error);
+  refresh();
+  if (failed?.error) return failure(failed.error);
+  return { ok: true };
+}
+
 export async function setCategoryActive(id: string, active: boolean): Promise<ActionResult> {
   return setActive("categories", id, active);
 }
@@ -345,6 +452,47 @@ export async function setCategoryActive(id: string, active: boolean): Promise<Ac
 // ---------------------------------------------------------------------------
 // Products
 // ---------------------------------------------------------------------------
+
+export type BulkStatusResult =
+  | { ok: true; updated: number }
+  | { ok: false; error: CatalogueFormError };
+
+/** Products per bulk change: one list page at most (plus headroom). */
+const MAX_BULK = 100;
+
+/**
+ * Activates or deactivates several products at once (the product list's
+ * bulk actions). Only products whose status actually changes are updated;
+ * `updated` is how many did.
+ */
+export async function setProductsActive(
+  ids: string[],
+  active: boolean,
+): Promise<BulkStatusResult> {
+  if (!(await getAdminOrNull())) return { ok: false, error: "forbidden" };
+  if (
+    !Array.isArray(ids) ||
+    ids.length === 0 ||
+    ids.length > MAX_BULK ||
+    !ids.every(isUuid) ||
+    typeof active !== "boolean"
+  ) {
+    return { ok: false, error: "unexpected" };
+  }
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("products")
+    .update({ is_active: active })
+    .in("id", [...new Set(ids)])
+    .neq("is_active", active)
+    .select("id");
+  if (error) {
+    const mapped = mapDbError(error, "set products status");
+    return { ok: false, error: "form" in mapped ? mapped.form : "unexpected" };
+  }
+  refresh();
+  return { ok: true, updated: data.length };
+}
 
 export async function saveProduct(
   _prev: ProductFormResult,
@@ -386,6 +534,23 @@ export async function saveProduct(
   }
   const productTypeId = attributeInput.productTypeId || null;
 
+  // Prices in other currencies (migration 031; absent before it: skipped).
+  // The product's own currency is its price above.
+  let otherPrices: { currency: string; price: bigint; salePrice: bigint | null }[] | null = null;
+  if (data.has(CURRENCY_PRICES_FIELD)) {
+    const currencies = await listCurrencies();
+    if (currencies) {
+      const { rows, errors } = readCurrencyPrices(
+        String(data.get(CURRENCY_PRICES_FIELD)),
+        currencies,
+      );
+      if (Object.keys(errors).length > 0) {
+        return { ...fieldFailure<ProductFieldErrors>({}), priceErrors: errors };
+      }
+      otherPrices = rows.filter((row) => row.currency !== input.currencyCode);
+    }
+  }
+
   // Category must exist; a new or changed category must also be active.
   const { data: category, error: categoryError } = await supabase
     .from("categories")
@@ -410,6 +575,13 @@ export async function saveProduct(
   }
   if (!category.is_active && current?.category_id !== category.id) {
     return fieldFailure({ categoryId: "categoryInactive" });
+  }
+
+  // Extra categories and tags (skipped until migration 027 is applied).
+  const taxonomy = await hasTaxonomy();
+  if (taxonomy) {
+    const assignmentErrors = await checkAssignments(supabase, id || null, input);
+    if (assignmentErrors) return fieldFailure(assignmentErrors);
   }
 
   // Validated above; NUMERIC values are sent as exact decimal strings (never floats).
@@ -442,9 +614,14 @@ export async function saveProduct(
     if (error) return dbFailure(error, "update product");
     if (!updated) return formError("conflict");
     const expected = parseWholeNumber(String(data.get("expectedStock") ?? ""));
-    const warning =
-      (await saveProductInventory(supabase, id, input, expected, "updated")) ??
-      (await saveProductAttributes(supabase, id, productTypeId, attributeRows));
+    // Each part is saved even if an earlier one failed; the first problem is reported.
+    const warnings = [
+      await saveProductInventory(supabase, id, input, expected, "updated"),
+      await saveProductAttributes(supabase, id, productTypeId, attributeRows),
+      taxonomy ? await saveProductAssignments(supabase, id, input) : undefined,
+      await saveProductPrices(supabase, id, otherPrices),
+    ];
+    const warning = warnings.find(Boolean);
     refresh();
     return { status: "success", fieldErrors: {}, id, mode: "updated", warning, at: Date.now() };
   }
@@ -455,10 +632,15 @@ export async function saveProduct(
     .select("id")
     .single();
   if (error) return dbFailure(error, "create product");
-  // The insert trigger already created the inventory row with 0 units.
-  const warning =
-    (await saveProductInventory(supabase, created.id, input, 0, "created")) ??
-    (await saveProductAttributes(supabase, created.id, productTypeId, attributeRows));
+  // The insert triggers already created the inventory row with 0 units and
+  // the main category's assignment.
+  const warnings = [
+    await saveProductInventory(supabase, created.id, input, 0, "created"),
+    await saveProductAttributes(supabase, created.id, productTypeId, attributeRows),
+    taxonomy ? await saveProductAssignments(supabase, created.id, input) : undefined,
+    await saveProductPrices(supabase, created.id, otherPrices),
+  ];
+  const warning = warnings.find(Boolean);
   return {
     status: "success",
     fieldErrors: {},
@@ -544,6 +726,31 @@ async function saveProductInventory(
 }
 
 /**
+ * Replaces the product's prices in its other currencies in one transaction
+ * (set_product_prices; its own currency was saved with the product and is
+ * mirrored by a trigger). Amounts are minor units, sent as strings so they
+ * stay exact. A failure is reported as a warning.
+ */
+async function saveProductPrices(
+  supabase: Supabase,
+  productId: string,
+  rows: { currency: string; price: bigint; salePrice: bigint | null }[] | null,
+): Promise<CatalogueWarning | undefined> {
+  if (rows === null) return undefined;
+  const { error } = await supabase.rpc("set_product_prices", {
+    p_product_id: productId,
+    p_prices: rows.map((row) => ({
+      currency_code: row.currency,
+      price: row.price.toString(),
+      sale_price: row.salePrice?.toString() ?? null,
+    })) as unknown as Json,
+  });
+  if (!error) return undefined;
+  log("set product prices", error);
+  return "pricesNotSaved";
+}
+
+/**
  * Sets the product's type and replaces its attribute values in one database
  * transaction (set_product_attributes re-checks required attributes). Runs
  * after the product itself was saved; a failure is reported as a warning.
@@ -565,12 +772,164 @@ async function saveProductAttributes(
   return "attributesNotSaved";
 }
 
+/**
+ * Extra categories and tags must exist; newly added ones must be active
+ * (ones the product already has may stay after being deactivated). The
+ * database re-checks this in set_product_categories / set_product_tags.
+ */
+async function checkAssignments(
+  supabase: Supabase,
+  productId: string | null,
+  input: Pick<ProductInput, "categoryIds" | "tagIds">,
+): Promise<ProductFieldErrors | null> {
+  const none = Promise.resolve({ data: [] as { id: string; is_active: boolean }[], error: null });
+  const noneSaved = Promise.resolve({ data: [] as { id: string }[], error: null });
+  const [categories, tags, savedCategories, savedTags] = await Promise.all([
+    input.categoryIds.length
+      ? supabase.from("categories").select("id, is_active").in("id", input.categoryIds)
+      : none,
+    input.tagIds.length
+      ? supabase.from("tags").select("id, is_active").in("id", input.tagIds)
+      : none,
+    productId
+      ? supabase.from("product_categories").select("id:category_id").eq("product_id", productId)
+      : noneSaved,
+    productId
+      ? supabase.from("product_tags").select("id:tag_id").eq("product_id", productId)
+      : noneSaved,
+  ]);
+  const error = categories.error ?? tags.error ?? savedCategories.error ?? savedTags.error;
+  if (error) {
+    log("check assignments", error);
+    return null; // the RPCs still enforce the rules; a failure becomes a warning
+  }
+  const errors: ProductFieldErrors = {};
+  const check = (
+    rows: { id: string; is_active: boolean }[],
+    wanted: string[],
+    saved: { id: string }[],
+  ) => {
+    const savedIds = new Set(saved.map((row) => row.id));
+    if (rows.length !== wanted.length) return "invalid";
+    if (rows.some((row) => !row.is_active && !savedIds.has(row.id))) return "inactive";
+  };
+  const categoryIssue = check(categories.data!, input.categoryIds, savedCategories.data!);
+  if (categoryIssue === "invalid") errors.categoryIds = "categoriesInvalid";
+  if (categoryIssue === "inactive") errors.categoryIds = "categoriesInactive";
+  const tagIssue = check(tags.data!, input.tagIds, savedTags.data!);
+  if (tagIssue === "invalid") errors.tagIds = "tagsInvalid";
+  if (tagIssue === "inactive") errors.tagIds = "tagsInactive";
+  return hasFieldErrors(errors) ? errors : null;
+}
+
+/**
+ * Replaces the product's extra categories and tags, each in one database
+ * transaction (the main category is always kept). Runs after the product
+ * itself was saved; a failure is reported as a warning.
+ */
+async function saveProductAssignments(
+  supabase: Supabase,
+  productId: string,
+  input: Pick<ProductInput, "categoryIds" | "tagIds">,
+): Promise<CatalogueWarning | undefined> {
+  const [categories, tags] = await Promise.all([
+    supabase.rpc("set_product_categories", {
+      p_product_id: productId,
+      p_category_ids: input.categoryIds,
+    }),
+    supabase.rpc("set_product_tags", { p_product_id: productId, p_tag_ids: input.tagIds }),
+  ]);
+  if (categories.error) log("set product categories", categories.error);
+  if (tags.error) log("set product tags", tags.error);
+  if (categories.error) return "categoriesNotSaved";
+  if (tags.error) return "tagsNotSaved";
+}
+
 export async function setProductActive(id: string, active: boolean): Promise<ActionResult> {
   return setActive("products", id, active);
 }
 
+// ---------------------------------------------------------------------------
+// Tags
+// ---------------------------------------------------------------------------
+
+export async function saveTag(_prev: TagFormResult, data: FormData): Promise<TagFormResult> {
+  if (!(await getAdminOrNull())) return formError("forbidden");
+
+  const id = String(data.get("id") ?? "");
+  const version = String(data.get("updatedAt") ?? "");
+  const input = readTag(data);
+  const fieldErrors = validateTag(input);
+  if (hasFieldErrors(fieldErrors)) return fieldFailure(fieldErrors);
+
+  const supabase = await createClient();
+  const values = { name: input.name, slug: input.slug, is_active: input.isActive };
+
+  if (id) {
+    if (!isUuid(id)) return formError("notFound");
+    // Optimistic concurrency: only update the version the admin loaded.
+    const { data: updated, error } = await supabase
+      .from("tags")
+      .update(values)
+      .eq("id", id)
+      .eq("updated_at", version)
+      .select("id")
+      .maybeSingle();
+    if (error) return dbFailure(error, "update tag");
+    if (!updated) {
+      const { data: exists } = await supabase.from("tags").select("id").eq("id", id).maybeSingle();
+      return formError(exists ? "conflict" : "notFound");
+    }
+    refresh();
+    return { status: "success", fieldErrors: {}, id, mode: "updated", at: Date.now() };
+  }
+
+  const { data: created, error } = await supabase.from("tags").insert(values).select("id").single();
+  if (error) return dbFailure(error, "create tag");
+  refresh();
+  return { status: "success", fieldErrors: {}, id: created.id, mode: "created", at: Date.now() };
+}
+
+export type CreateTagResult =
+  | { ok: true; id: string; name: string }
+  | { ok: false; error: CatalogueFormError | CatalogueFieldError };
+
+/**
+ * Creates an active tag from the product form ("Create tag …"). The slug
+ * comes from the name (a numbered one when taken); names without Latin
+ * letters (e.g. Arabic) get a generated slug the admin can edit later.
+ */
+export async function createTag(rawName: string): Promise<CreateTagResult> {
+  if (!(await getAdminOrNull())) return { ok: false, error: "forbidden" };
+  const name = rawName.trim();
+  const base = slugify(name).slice(0, 90).replace(/-+$/, "") || `tag-${randomUUID().slice(0, 8)}`;
+  const nameError = validateTag({ name, slug: base, isActive: true }).name;
+  if (nameError) return { ok: false, error: nameError };
+
+  const supabase = await createClient();
+  for (const slug of [base, ...[2, 3, 4, 5].map((n) => `${base}-${n}`)]) {
+    const { data: created, error } = await supabase
+      .from("tags")
+      .insert({ name, slug, is_active: true })
+      .select("id, name")
+      .single();
+    if (!error) {
+      refresh();
+      return { ok: true, id: created.id, name: created.name };
+    }
+    const mapped = mapDbError(error, "create tag");
+    if ("field" in mapped && mapped.code === "slugTaken") continue; // try the next slug
+    return { ok: false, error: "form" in mapped ? mapped.form : mapped.code };
+  }
+  return { ok: false, error: "slugTaken" };
+}
+
+export async function setTagActive(id: string, active: boolean): Promise<ActionResult> {
+  return setActive("tags", id, active);
+}
+
 async function setActive(
-  table: "categories" | "products",
+  table: "categories" | "products" | "tags",
   id: string,
   active: boolean,
 ): Promise<ActionResult> {

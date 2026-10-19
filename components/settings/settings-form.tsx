@@ -2,6 +2,7 @@
 
 import {
   Bell,
+  Clock,
   Coins,
   Globe2,
   LoaderCircle,
@@ -10,6 +11,7 @@ import {
   Phone,
   Receipt,
   Save,
+  Share2,
   Store,
   Trash2,
   Truck,
@@ -32,6 +34,7 @@ import { useI18n } from "@/lib/i18n/client";
 import { format } from "@/lib/i18n/messages";
 import { currencyFractionDigits, moneyInputValue } from "@/lib/money";
 import { saveSettings, type SettingsFormResult } from "@/lib/settings/actions";
+import { BusinessHoursFields } from "./business-hours-fields";
 import type { StoreSettings } from "@/lib/settings/queries";
 import {
   ADDRESS_LINE_MAX_LENGTH,
@@ -41,13 +44,27 @@ import {
   PHONE_MAX_LENGTH,
   POSTAL_CODE_MAX_LENGTH,
   readSettings,
+  SOCIAL_KEYS,
+  SOCIAL_URL_MAX_LENGTH,
   STORE_NAME_MAX_LENGTH,
   TAX_NUMBER_MAX_LENGTH,
   timezoneOptions,
   validateSettings,
+  WEEKDAYS,
   type SettingsError,
   type SettingsFieldErrors,
+  type SocialPlatform,
 } from "@/lib/settings/rules";
+
+/** Brand names, shown as-is in every language. */
+const SOCIAL_LABELS: Record<SocialPlatform, string> = {
+  instagram: "Instagram",
+  facebook: "Facebook",
+  tiktok: "TikTok",
+  snapchat: "Snapchat",
+  x: "X (Twitter)",
+  youtube: "YouTube",
+};
 
 const initialState: SettingsFormResult = { status: "idle", fieldErrors: {}, at: 0 };
 
@@ -161,6 +178,7 @@ function SettingsFields({
   const [clientErrors, setClientErrors] = useState<SettingsFormResult["fieldErrors"] | null>(null);
   const [currency, setCurrency] = useState(settings.currency_code);
   const [taxEnabled, setTaxEnabled] = useState(settings.tax_enabled);
+  const [hoursEnabled, setHoursEnabled] = useState(settings.business_hours !== null);
   const [logo, setLogo] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [removeLogo, setRemoveLogo] = useState(false);
@@ -243,7 +261,7 @@ function SettingsFields({
       optional?: boolean;
       dir?: "ltr";
       type?: string;
-      inputMode?: "decimal" | "numeric" | "tel" | "email";
+      inputMode?: "decimal" | "numeric" | "tel" | "email" | "url";
       autoComplete?: string;
       placeholder?: string;
       disabled?: boolean;
@@ -388,7 +406,25 @@ function SettingsFields({
           </div>
         </Section>
 
-        <Section id="contact" icon={Phone} title={t.sections.contact} description={t.contactHint}>
+        {settings.contactExtras && <input type="hidden" name="contactExtras" value="on" readOnly />}
+
+        <Section
+          id="contact"
+          icon={Phone}
+          title={t.sections.contact}
+          description={settings.contactExtras ? t.contactPublicHint : t.contactHint}
+        >
+          {settings.contactExtras && (
+            <div className="rounded-xl border p-3">
+              <Toggle
+                name="contactPublished"
+                label={f.contactPublished}
+                hint={f.contactPublishedHint}
+                defaultChecked={settings.contact_published}
+                disabled={pending}
+              />
+            </div>
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
             {text("contactEmail", f.contactEmail, settings.contact_email, {
               optional: true,
@@ -405,10 +441,25 @@ function SettingsFields({
               maxLength: PHONE_MAX_LENGTH,
               placeholder: "+971 4 000 0000",
             })}
+            {settings.contactExtras &&
+              text("contactWhatsapp", f.contactWhatsapp, settings.contact_whatsapp, {
+                optional: true,
+                type: "tel",
+                inputMode: "tel",
+                dir: "ltr",
+                maxLength: PHONE_MAX_LENGTH,
+                placeholder: "+971 50 000 0000",
+                hint: f.contactWhatsappHint,
+              })}
           </div>
         </Section>
 
-        <Section id="address" icon={MapPin} title={t.sections.address}>
+        <Section
+          id="address"
+          icon={MapPin}
+          title={t.sections.address}
+          description={settings.contactExtras ? t.addressHint : undefined}
+        >
           {text("addressLine1", f.addressLine1, settings.address_line1, {
             optional: true,
             maxLength: ADDRESS_LINE_MAX_LENGTH,
@@ -430,6 +481,48 @@ function SettingsFields({
             })}
           </div>
         </Section>
+
+        {settings.contactExtras && (
+          <Section id="hours" icon={Clock} title={t.sections.hours} description={t.hoursHint}>
+            <Toggle
+              name="hoursEnabled"
+              label={f.hoursEnabled}
+              hint={f.hoursEnabledHint}
+              checked={hoursEnabled}
+              onChange={setHoursEnabled}
+              disabled={pending}
+            />
+            {/* Hidden (not unmounted) so turning hours off and on keeps the edits. */}
+            <div hidden={!hoursEnabled}>
+              <BusinessHoursFields
+                saved={settings.business_hours}
+                disabled={pending || !hoursEnabled}
+                errors={Object.fromEntries(
+                  WEEKDAYS.map((day) => [day, errorText(fieldErrors[`hours.${day}`])]),
+                )}
+                onChange={() => setDirty(true)}
+              />
+            </div>
+          </Section>
+        )}
+
+        {settings.contactExtras && (
+          <Section id="social" icon={Share2} title={t.sections.social} description={t.socialHint}>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {SOCIAL_KEYS.map((key) => (
+                <div key={key}>
+                  {text(`social.${key}`, SOCIAL_LABELS[key], settings[`social_${key}`], {
+                    optional: true,
+                    dir: "ltr",
+                    inputMode: "url",
+                    maxLength: SOCIAL_URL_MAX_LENGTH,
+                    placeholder: f.socialPlaceholder,
+                  })}
+                </div>
+              ))}
+            </div>
+          </Section>
+        )}
 
         <Section id="market" icon={Globe2} title={t.sections.market} description={t.marketHint}>
           <div className="grid gap-4 sm:grid-cols-2">

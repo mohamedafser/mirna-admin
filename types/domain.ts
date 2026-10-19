@@ -11,6 +11,7 @@ export type Profile = Tables<"profiles">;
 export type Category = Tables<"categories">;
 export type Product = Tables<"products">;
 export type ProductImage = Tables<"product_images">;
+export type Tag = Tables<"tags">;
 export type Inventory = Tables<"inventory">;
 export type Address = Tables<"addresses">;
 export type Order = Tables<"orders">;
