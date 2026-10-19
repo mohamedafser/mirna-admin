@@ -860,9 +860,23 @@
     "deactivateTitle": "Deactivate {name}?",
     "deactivateBody": "It won't be sold and its units no longer count toward the product's stock. Its stock and history are kept.",
     "deleteTitle": "Delete {name}?",
-    "deleteBody": "This permanently deletes the variant. Only variants without stock or stock history can be deleted.",
+    "deleteBody": "This permanently deletes the variant. Any stock it has is cleared to 0 first; its stock history is kept.",
     "deleted": "Variant deleted.",
-    "deleteUnavailable": "Has stock or history. Deactivate it instead.",
+    "deleteUnavailable": "Has reserved units. Deactivate it instead.",
+    "bulk": {
+      "selectNamed": "Select {name}",
+      "selectAll": "Select all on this page",
+      "selected": "{count} selected",
+      "label": "Bulk actions",
+      "clear": "Clear selection",
+      "deleteTitle": "Delete {count} variant(s)?",
+      "deleteBody": "This permanently deletes the selected variants. Their stock history is kept.",
+      "deleted": "{count} variant(s) deleted.",
+      "skipped": "{count} variant(s) have reserved units and weren't deleted. Deactivate them instead.",
+      "clearsStock": "{units} unit(s) in stock will be cleared to 0 first, and the change is recorded in stock history.",
+      "selectOutdated": "Select not in current options",
+      "deleteAction": "Clear stock & delete"
+    },
     "errors": {
       "noOptions": "This product has no variant options. Pick several values for a Select or Colour attribute first.",
       "invalidCombination": "These combinations no longer match the product's options. Reload the page.",
@@ -875,7 +889,8 @@
       "hasHistory": "This variant has stock history. Deactivate it instead.",
       "skuRequired": "Enter a SKU.",
       "skuInvalid": "Use up to 64 letters, numbers, dots, dashes or underscores, starting with a letter or number.",
-      "imageInvalid": "Choose one of this product's images."
+      "imageInvalid": "Choose one of this product's images.",
+      "hasReserved": "This variant has reserved units. Deactivate it instead."
     }
   },
   "inventory": {
@@ -961,7 +976,8 @@
         "returned": "Returned",
         "manual_correction": "Manual correction",
         "other": "Other",
-        "variant_migration": "Moved from product stock"
+        "variant_migration": "Moved from product stock",
+        "variant_deleted": "Variant deleted"
       },
       "notes": "Notes",
       "notesHint": "Optional. Required when the reason is Other.",
