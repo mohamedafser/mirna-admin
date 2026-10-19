@@ -21,7 +21,7 @@ export function Brand({
       <span
         aria-hidden
         className={cn(
-          "inline-flex items-center justify-center rounded-md bg-primary font-display font-medium text-primary-foreground",
+          "inline-flex items-center justify-center rounded-md bg-brand font-display font-medium text-brand-foreground",
           size === "lg" ? "size-11 text-lg" : "size-9 text-base",
         )}
       >

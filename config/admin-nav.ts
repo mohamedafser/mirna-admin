@@ -1,5 +1,6 @@
 import {
   Boxes,
+  Coins,
   FolderTree,
   GalleryHorizontalEnd,
   LayoutDashboard,
@@ -9,6 +10,7 @@ import {
   ShieldCheck,
   ShoppingCart,
   SlidersHorizontal,
+  Tags,
   UserRound,
   Users,
   type LucideIcon,
@@ -27,6 +29,7 @@ export type AdminSectionKey =
   | "dashboard"
   | "products"
   | "categories"
+  | "tags"
   | "productTypes"
   | "attributes"
   | "inventory"
@@ -34,6 +37,7 @@ export type AdminSectionKey =
   | "customers"
   | "admins"
   | "banner"
+  | "currencies"
   | "settings"
   | "profile";
 
@@ -55,6 +59,14 @@ export const adminSections: readonly AdminSection[] = [
     key: "categories",
     segment: "categories",
     icon: FolderTree,
+    inNav: true,
+    available: true,
+    group: "catalogue",
+  },
+  {
+    key: "tags",
+    segment: "tags",
+    icon: Tags,
     inNav: true,
     available: true,
     group: "catalogue",
@@ -95,6 +107,7 @@ export const adminSections: readonly AdminSection[] = [
   { key: "customers", segment: "customers", icon: Users, inNav: true, available: true },
   { key: "admins", segment: "admins", icon: ShieldCheck, inNav: true, available: true },
   { key: "banner", segment: "banner", icon: GalleryHorizontalEnd, inNav: true, available: true },
+  { key: "currencies", segment: "currencies", icon: Coins, inNav: true, available: true },
   { key: "settings", segment: "settings", icon: Settings, inNav: true, available: true },
   { key: "profile", segment: "profile", icon: UserRound, inNav: false, available: false },
 ];

@@ -14,6 +14,11 @@ export const SHORT_DESCRIPTION_MAX_LENGTH = 500;
 /** Same rule as the products.sku CHECK constraint. */
 export const SKU_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 export const SKU_MAX_LENGTH = 64;
+export const TAG_NAME_MAX_LENGTH = 100;
+export const TAG_SLUG_MAX_LENGTH = 100;
+/** Same caps as set_product_categories / set_product_tags (migration 027). */
+export const MAX_PRODUCT_CATEGORIES = 100;
+export const MAX_PRODUCT_TAGS = 100;
 const INT_MAX = 2147483647;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -46,6 +51,13 @@ export type CatalogueFieldError =
   | "imageEmpty"
   | "productTypeInvalid"
   | "productTypeInactive"
+  | "categoriesInvalid"
+  | "categoriesInactive"
+  | "tooManyCategories"
+  | "tagNameTaken"
+  | "tagsInvalid"
+  | "tagsInactive"
+  | "tooManyTags"
   | MoneyError;
 
 export function isUuid(value: unknown): value is string {
@@ -54,14 +66,24 @@ export function isUuid(value: unknown): value is string {
 
 const text = (data: FormData, name: string) => String(data.get(name) ?? "").trim();
 
+/** Every non-empty value of a repeated field, de-duplicated. */
+const list = (data: FormData, name: string) => [
+  ...new Set(
+    data
+      .getAll(name)
+      .map((value) => String(value).trim())
+      .filter(Boolean),
+  ),
+];
+
 function validateName(name: string): CatalogueFieldError | undefined {
   if (!name) return "nameRequired";
   if (name.length > NAME_MAX_LENGTH) return "nameTooLong";
 }
 
-function validateSlug(slug: string): CatalogueFieldError | undefined {
+function validateSlug(slug: string, max = SLUG_MAX_LENGTH): CatalogueFieldError | undefined {
   if (!slug) return "slugRequired";
-  if (slug.length > SLUG_MAX_LENGTH || !SLUG_PATTERN.test(slug)) return "slugInvalid";
+  if (slug.length > max || !SLUG_PATTERN.test(slug)) return "slugInvalid";
 }
 
 // ---------------------------------------------------------------------------
@@ -113,6 +135,35 @@ export function validateCategory(input: CategoryInput): CategoryFieldErrors {
 }
 
 // ---------------------------------------------------------------------------
+// Tags
+// ---------------------------------------------------------------------------
+
+export interface TagInput {
+  name: string;
+  slug: string;
+  isActive: boolean;
+}
+
+export type TagFieldErrors = Partial<Record<keyof TagInput, CatalogueFieldError>>;
+
+export function readTag(data: FormData): TagInput {
+  return {
+    name: text(data, "name"),
+    slug: text(data, "slug"),
+    isActive: data.get("isActive") === "on",
+  };
+}
+
+/** Same limits as the tags CHECK constraints (migration 027). */
+export function validateTag(input: TagInput): TagFieldErrors {
+  const errors: TagFieldErrors = {};
+  if (!input.name) errors.name = "nameRequired";
+  else if (input.name.length > TAG_NAME_MAX_LENGTH) errors.name = "nameTooLong";
+  errors.slug = validateSlug(input.slug, TAG_SLUG_MAX_LENGTH);
+  return compact(errors);
+}
+
+// ---------------------------------------------------------------------------
 // Products
 // ---------------------------------------------------------------------------
 
@@ -130,6 +181,9 @@ export interface ProductInput {
   /** Units on hand (whole number). Saved through adjust_inventory(). */
   stock: string;
   lowStockThreshold: string;
+  /** Extra categories (the main one, categoryId, is always included). */
+  categoryIds: string[];
+  tagIds: string[];
 }
 
 export type ProductFieldErrors = Partial<
@@ -150,6 +204,8 @@ export function readProduct(data: FormData): ProductInput {
     isActive: data.get("isActive") === "on",
     stock: text(data, "stock"),
     lowStockThreshold: text(data, "lowStockThreshold"),
+    categoryIds: list(data, "categoryIds"),
+    tagIds: list(data, "tagIds"),
   };
 }
 
@@ -167,6 +223,13 @@ export function validateProduct(input: ProductInput, reserved = 0): ProductField
 
   if (!input.categoryId) errors.categoryId = "categoryRequired";
   else if (!isUuid(input.categoryId)) errors.categoryId = "categoryInvalid";
+
+  if (!input.categoryIds.every(isUuid)) errors.categoryIds = "categoriesInvalid";
+  else if (input.categoryIds.length > MAX_PRODUCT_CATEGORIES) {
+    errors.categoryIds = "tooManyCategories";
+  }
+  if (!input.tagIds.every(isUuid)) errors.tagIds = "tagsInvalid";
+  else if (input.tagIds.length > MAX_PRODUCT_TAGS) errors.tagIds = "tooManyTags";
 
   if (input.shortDescription.length > SHORT_DESCRIPTION_MAX_LENGTH) {
     errors.shortDescription = "shortDescriptionTooLong";

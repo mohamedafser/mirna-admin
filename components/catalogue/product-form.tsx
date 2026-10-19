@@ -24,6 +24,9 @@ import {
   type SavedProductAttributes,
 } from "@/lib/attributes/rules";
 import { validateImageFile } from "@/lib/catalogue/images";
+import type { Currency } from "@/lib/currency/money";
+import { CURRENCY_PRICES_FIELD, readCurrencyPrices } from "@/lib/currency/product-prices";
+import type { ProductTaxonomy, TagOption } from "@/lib/catalogue/queries";
 import { slugify } from "@/lib/catalogue/slug";
 import {
   NAME_MAX_LENGTH,
@@ -45,6 +48,8 @@ import { Panel } from "./panel";
 import { useUnsavedChanges } from "./use-unsaved-changes";
 import { CategoryPicker, type CategoryChoice } from "./category-picker";
 import { ProductAttributes } from "./product-attributes";
+import { PriceTable } from "./price-table";
+import { ProductTaxonomyFields } from "./product-taxonomy";
 
 export interface EditableProduct {
   id: string;
@@ -70,6 +75,8 @@ export interface EditableProduct {
   attributes: SavedProductAttributes | null;
   /** > 0: stock is managed per variant (the product row is their total). */
   variantCount: number;
+  /** Category (main included) and tag ids (null: tag tables not set up yet). */
+  taxonomy: ProductTaxonomy | null;
 }
 
 /** Product and stock are versioned separately; either change reloads the form. */
@@ -91,8 +98,17 @@ interface ProductFormProps {
   categories: CategoryChoice[];
   currencies: readonly string[];
   defaultCurrency: string;
+  /**
+   * The store's currencies (null until migration 031 is applied: the form
+   * keeps its single price). With them, pricing is a table per currency.
+   */
+  priceCurrencies?: Currency[] | null;
+  /** The product's product-level prices in minor units, by currency code. */
+  prices?: Record<string, { price: number; salePrice: number | null }>;
   /** Product types and attributes (null until migration 023 is applied). */
   attributeCatalog: AttributeCatalog | null;
+  /** Every tag (null until migration 027 is applied: tag fields hidden). */
+  tags: TagOption[] | null;
   /** Side column content for an existing product (its image manager). */
   aside?: ReactNode;
 }
@@ -149,7 +165,10 @@ function ProductFormFields({
   categories,
   currencies,
   defaultCurrency,
+  priceCurrencies = null,
+  prices = {},
   attributeCatalog,
+  tags,
   aside,
   dirty,
   setDirty,
@@ -170,13 +189,18 @@ function ProductFormFields({
   const [slug, setSlug] = useState(product?.slug ?? "");
   // An existing slug, or one the admin typed, is never overwritten by the name.
   const [slugTouched, setSlugTouched] = useState(Boolean(product));
-  const [currency, setCurrency] = useState(product?.currency_code ?? defaultCurrency);
+  const [currency, setCurrency] = useState(
+    product?.currency_code ??
+      priceCurrencies?.find((option) => option.isDefault)?.code ??
+      defaultCurrency,
+  );
   const [images, setImages] = useState<PendingImage[]>([]);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const loadedStock = product?.inventory?.quantity ?? 0;
   const reserved = product?.inventory?.reserved ?? 0;
   const [stock, setStock] = useState(String(loadedStock));
   const [threshold, setThreshold] = useState(String(product?.inventory?.threshold ?? 0));
+  const [mainCategoryId, setMainCategoryId] = useState(product?.category_id ?? "");
   const id = useId();
   const formId = `${id}-form`;
 
@@ -263,6 +287,12 @@ function ProductFormFields({
     const form = event.currentTarget;
     const data = new FormData(form);
     const errors = validateProduct(readProduct(data), reserved);
+    // Prices in other currencies (the base currency is the product's own price above).
+    const priceIssues = priceCurrencies
+      ? Object.keys(
+          readCurrencyPrices(String(data.get(CURRENCY_PRICES_FIELD) ?? ""), priceCurrencies).errors,
+        )
+      : [];
     let attributeIssues: Record<string, ProductAttributeError> = {};
     if (attributeCatalog) {
       const input = readProductAttributes(data);
@@ -276,9 +306,18 @@ function ProductFormFields({
       attributeIssues = checked.errors;
     }
     const firstAttribute = Object.keys(attributeIssues)[0];
-    if (Object.keys(errors).length > 0 || firstAttribute) {
+    if (Object.keys(errors).length > 0 || firstAttribute || priceIssues.length > 0) {
       setClientErrors(errors);
       setClientAttributeErrors(attributeIssues);
+      if (
+        priceCurrencies &&
+        (errors.price || errors.compareAtPrice || (!Object.keys(errors)[0] && !firstAttribute))
+      ) {
+        // The price table: the base row's fields, else the first row with a problem.
+        const code = errors.price || errors.compareAtPrice ? currency : priceIssues[0];
+        form.querySelector<HTMLElement>(`[data-price-currency="${code}"]`)?.focus();
+        return;
+      }
       const first = Object.keys(errors)[0] ?? firstAttribute;
       // Custom dropdowns are found by data-field (their hidden input can't take focus).
       form
@@ -381,6 +420,35 @@ function ProductFormFields({
                   />
                 )}
               </Field>
+              <Field
+                id={`${id}-slug`}
+                label={f.slug}
+                error={errorText(fieldErrors.slug)}
+                hint={product && slug !== product.slug ? f.slugEditWarning : f.slugHint}
+              >
+                {(a11y) => (
+                  <Input
+                    {...a11y}
+                    name="slug"
+                    value={slug}
+                    dir="ltr"
+                    maxLength={200}
+                    required
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    disabled={pending}
+                    onChange={(event) => {
+                      setSlug(event.target.value);
+                      setSlugTouched(event.target.value !== "");
+                    }}
+                  />
+                )}
+              </Field>
+            </div>
+          </Section>
+
+          <Section title={t.products.sections.organization}>
+            <div className="grid gap-4 sm:grid-cols-2">
               <CategoryPicker
                 idPrefix={id}
                 categories={choices}
@@ -388,32 +456,22 @@ function ProductFormFields({
                 disabled={pending}
                 error={errorText(fieldErrors.categoryId)}
                 onChange={() => setDirty(true)}
+                onSelect={setMainCategoryId}
               />
             </div>
-            <Field
-              id={`${id}-slug`}
-              label={f.slug}
-              error={errorText(fieldErrors.slug)}
-              hint={product && slug !== product.slug ? f.slugEditWarning : f.slugHint}
-            >
-              {(a11y) => (
-                <Input
-                  {...a11y}
-                  name="slug"
-                  value={slug}
-                  dir="ltr"
-                  maxLength={200}
-                  required
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  disabled={pending}
-                  onChange={(event) => {
-                    setSlug(event.target.value);
-                    setSlugTouched(event.target.value !== "");
-                  }}
-                />
-              )}
-            </Field>
+            {tags && (
+              <ProductTaxonomyFields
+                idPrefix={id}
+                categories={categories}
+                tags={tags}
+                saved={product?.taxonomy ?? { categoryIds: [], tagIds: [] }}
+                mainCategoryId={mainCategoryId}
+                disabled={pending}
+                categoryError={errorText(fieldErrors.categoryIds)}
+                tagError={errorText(fieldErrors.tagIds)}
+                onChange={() => setDirty(true)}
+              />
+            )}
           </Section>
 
           {attributeCatalog && (
@@ -429,69 +487,83 @@ function ProductFormFields({
             </Section>
           )}
 
-          <Section title={t.products.sections.pricing}>
-            <div className="grid gap-4 sm:grid-cols-[1fr_1fr_8rem]">
-              <Field id={`${id}-price`} label={f.price} error={errorText(fieldErrors.price)}>
-                {(a11y) => (
-                  <Input
-                    {...a11y}
-                    name="price"
-                    inputMode="decimal"
-                    dir="ltr"
-                    required
-                    autoComplete="off"
-                    disabled={pending}
-                    placeholder="0.00"
-                    defaultValue={
-                      product ? moneyInputValue(product.price, product.currency_code) : ""
-                    }
-                  />
-                )}
-              </Field>
-              <Field
-                id={`${id}-compare`}
-                label={f.compareAtPrice}
-                optional={t.common.optional}
-                error={errorText(fieldErrors.compareAtPrice)}
-              >
-                {(a11y) => (
-                  <Input
-                    {...a11y}
-                    name="compareAtPrice"
-                    inputMode="decimal"
-                    dir="ltr"
-                    autoComplete="off"
-                    disabled={pending}
-                    defaultValue={
-                      product
-                        ? moneyInputValue(product.compare_at_price, product.currency_code)
-                        : ""
-                    }
-                  />
-                )}
-              </Field>
-              <Field
-                id={`${id}-currency`}
-                label={f.currency}
-                error={errorText(fieldErrors.currencyCode)}
-              >
-                {(a11y) => (
-                  <Combobox
-                    {...a11y}
-                    name="currencyCode"
-                    dataField="currencyCode"
-                    value={currency}
-                    disabled={pending}
-                    onChange={(code) => {
-                      setCurrency(code);
-                      setDirty(true);
-                    }}
-                    options={currencies.map((code) => ({ value: code, label: code }))}
-                  />
-                )}
-              </Field>
-            </div>
-            <p className="-mt-2 text-xs text-muted-foreground">{f.compareAtHint}</p>
+          <Section title={priceCurrencies ? t.products.prices.title : t.products.sections.pricing}>
+            {priceCurrencies ? (
+              <PriceTable
+                currencies={priceCurrencies}
+                base={currency}
+                initial={prices}
+                serverErrors={state.priceErrors}
+                baseError={errorText(fieldErrors.price ?? fieldErrors.compareAtPrice)}
+                disabled={pending}
+                onChange={() => setDirty(true)}
+              />
+            ) : (
+              <>
+                <div className="grid gap-4 sm:grid-cols-[1fr_1fr_8rem]">
+                  <Field id={`${id}-price`} label={f.price} error={errorText(fieldErrors.price)}>
+                    {(a11y) => (
+                      <Input
+                        {...a11y}
+                        name="price"
+                        inputMode="decimal"
+                        dir="ltr"
+                        required
+                        autoComplete="off"
+                        disabled={pending}
+                        placeholder="0.00"
+                        defaultValue={
+                          product ? moneyInputValue(product.price, product.currency_code) : ""
+                        }
+                      />
+                    )}
+                  </Field>
+                  <Field
+                    id={`${id}-compare`}
+                    label={f.compareAtPrice}
+                    optional={t.common.optional}
+                    error={errorText(fieldErrors.compareAtPrice)}
+                  >
+                    {(a11y) => (
+                      <Input
+                        {...a11y}
+                        name="compareAtPrice"
+                        inputMode="decimal"
+                        dir="ltr"
+                        autoComplete="off"
+                        disabled={pending}
+                        defaultValue={
+                          product
+                            ? moneyInputValue(product.compare_at_price, product.currency_code)
+                            : ""
+                        }
+                      />
+                    )}
+                  </Field>
+                  <Field
+                    id={`${id}-currency`}
+                    label={f.currency}
+                    error={errorText(fieldErrors.currencyCode)}
+                  >
+                    {(a11y) => (
+                      <Combobox
+                        {...a11y}
+                        name="currencyCode"
+                        dataField="currencyCode"
+                        value={currency}
+                        disabled={pending}
+                        onChange={(code) => {
+                          setCurrency(code);
+                          setDirty(true);
+                        }}
+                        options={currencies.map((code) => ({ value: code, label: code }))}
+                      />
+                    )}
+                  </Field>
+                </div>
+                <p className="-mt-2 text-xs text-muted-foreground">{f.compareAtHint}</p>
+              </>
+            )}
           </Section>
 
           <Section title={t.products.sections.inventory}>

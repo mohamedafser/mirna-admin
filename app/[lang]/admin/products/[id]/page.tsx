@@ -15,8 +15,16 @@ import { PageSkeleton } from "@/components/ui/states";
 import { supportedCurrencies } from "@/config/region";
 import { getAttributeCatalog, getProductAttributes } from "@/lib/attributes/queries";
 import type { SavedProductAttributes } from "@/lib/attributes/rules";
+import { getProductPrices, listCurrencies } from "@/lib/currencies/queries";
 import { requireAdmin } from "@/lib/auth/dal";
-import { getProduct, listCategoryOptions, type ProductDetail } from "@/lib/catalogue/queries";
+import {
+  getProduct,
+  getProductTaxonomy,
+  listCategoryOptions,
+  listTagOptions,
+  type ProductDetail,
+  type ProductTaxonomy,
+} from "@/lib/catalogue/queries";
 import { getVariantCount } from "@/lib/variants/queries";
 import { getInventoryItem, type InventoryRow } from "@/lib/inventory/queries";
 import { isUuid } from "@/lib/catalogue/validation";
@@ -45,6 +53,7 @@ function editableProduct(
   stock: InventoryRow | null,
   attributes: SavedProductAttributes | null,
   variantCount: number,
+  taxonomy: ProductTaxonomy | null,
 ): EditableProduct {
   const { id, name, slug, sku, category_id, short_description, description } = product;
   const { price, compare_at_price, currency_code, is_active, updated_at } = product;
@@ -72,6 +81,7 @@ function editableProduct(
         : null,
     attributes,
     variantCount,
+    taxonomy,
   };
 }
 
@@ -91,16 +101,30 @@ async function ProductDetailView({
   const { id } = await params;
   if (!isUuid(id)) notFound();
 
-  const [product, categories, stock, attributeCatalog, attributes, variantCount] =
-    await Promise.all([
-      getProduct(id),
-      listCategoryOptions(),
-      getInventoryItem(id),
-      getAttributeCatalog(),
-      getProductAttributes(id),
-      getVariantCount(id),
-    ]);
+  const [
+    product,
+    categories,
+    stock,
+    attributeCatalog,
+    attributes,
+    variantCount,
+    tags,
+    taxonomy,
+    priceCurrencies,
+  ] = await Promise.all([
+    getProduct(id),
+    listCategoryOptions(),
+    getInventoryItem(id),
+    getAttributeCatalog(),
+    getProductAttributes(id),
+    getVariantCount(id),
+    listTagOptions(),
+    getProductTaxonomy(id),
+    listCurrencies(),
+  ]);
   if (!product) notFound();
+  // Product-level prices per currency (only once migration 031 exists).
+  const prices = priceCurrencies ? await getProductPrices(id) : {};
 
   const t = messages.catalogue;
   const p = t.products;
@@ -168,13 +192,16 @@ async function ProductDetailView({
       </div>
 
       <ProductForm
-        product={editableProduct(product, stock, attributes, variantCount)}
+        product={editableProduct(product, stock, attributes, variantCount, taxonomy)}
         attributeCatalog={attributeCatalog}
+        tags={tags}
         categories={categories}
         currencies={[
           ...new Set([product.currency_code, region.currencyCode, ...supportedCurrencies]),
         ]}
         defaultCurrency={product.currency_code}
+        priceCurrencies={priceCurrencies}
+        prices={prices}
         aside={
           <Panel title={p.sections.images}>
             <ProductImages

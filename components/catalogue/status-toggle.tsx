@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
 import { setAttributeActive, setProductTypeActive } from "@/lib/attributes/actions";
-import { setCategoryActive, setProductActive } from "@/lib/catalogue/actions";
+import { setCategoryActive, setProductActive, setTagActive } from "@/lib/catalogue/actions";
 import { setVariantActive } from "@/lib/variants/actions";
 import { format } from "@/lib/i18n/messages";
 import { useI18n } from "@/lib/i18n/client";
@@ -23,7 +23,7 @@ export function StatusToggle({
   size = "sm",
   compact = false,
 }: {
-  kind: "product" | "category" | "productType" | "attribute" | "variant";
+  kind: "product" | "category" | "tag" | "productType" | "attribute" | "variant";
   id: string;
   name: string;
   active: boolean;
@@ -36,6 +36,7 @@ export function StatusToggle({
   const copy = {
     product: t.products,
     category: t.categories,
+    tag: t.tags,
     productType: messages.attributes.types,
     attribute: messages.attributes.attrs,
     variant: messages.variants,
@@ -49,6 +50,7 @@ export function StatusToggle({
       const action = {
         product: setProductActive,
         category: setCategoryActive,
+        tag: setTagActive,
         productType: setProductTypeActive,
         attribute: setAttributeActive,
         variant: setVariantActive,

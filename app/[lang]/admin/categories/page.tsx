@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { CatalogueImage } from "@/components/catalogue/catalogue-image";
 import { CategoryDialog, type EditableCategory } from "@/components/catalogue/category-dialog";
+import { CategoryTree } from "@/components/catalogue/category-tree";
 import { ListToolbar } from "@/components/catalogue/list-toolbar";
 import { ListViews } from "@/components/catalogue/list-views";
 import { Pagination } from "@/components/catalogue/pagination";
@@ -16,6 +17,7 @@ import { requireAdmin } from "@/lib/auth/dal";
 import {
   listCategories,
   listCategoryOptions,
+  listCategoryTree,
   parseListParams,
   type CategoryRow,
 } from "@/lib/catalogue/queries";
@@ -42,6 +44,11 @@ export default async function CategoriesPage({
   );
 }
 
+/** A row for the structure view: the editable fields plus its product count. */
+function editableRow(category: CategoryRow) {
+  return { ...editable(category), productCount: category.productCount };
+}
+
 function editable(category: CategoryRow): EditableCategory {
   const { id, name, slug, description, image_url, sort_order, is_active, updated_at, parent_id } =
     category;
@@ -55,7 +62,11 @@ async function Categories({
   await requireAdmin(locale);
   const { timezone: timeZone } = await getStoreRegion();
   const params = parseListParams(await searchParams);
-  const [result, options] = await Promise.all([listCategories(params), listCategoryOptions()]);
+  const [result, options, tree] = await Promise.all([
+    listCategories(params),
+    listCategoryOptions(),
+    listCategoryTree(),
+  ]);
   // Possible parents: top-level categories (their option name is the plain name).
   const parents = options
     .filter((option) => !option.parentId)
@@ -66,7 +77,9 @@ async function Categories({
   const listParams = {
     q: params.q,
     status: params.status === "all" ? "" : params.status,
-    view: params.view === "grid" ? "grid" : "",
+    level: params.level,
+    // The Structure view is the default, so list links name their view.
+    view: params.view,
   };
   // Past the last page (e.g. after filtering or deactivations): go to the last one.
   if (result.rows.length === 0 && result.total > 0) {
@@ -77,7 +90,6 @@ async function Categories({
 
   const t = messages.catalogue;
   const c = t.categories;
-  const filtered = Boolean(params.q) || params.status !== "all";
   const date = (value: string) => formatDateTime(value, locale, { dateStyle: "medium" }, timeZone);
   const status = (active: boolean) => (
     <StatusBadge active={active} activeLabel={t.common.active} inactiveLabel={t.common.inactive} />
@@ -121,13 +133,34 @@ async function Categories({
     </>
   );
 
+  const noResults = (
+    <Card>
+      <EmptyState
+        icon={SearchX}
+        title={t.common.noResultsTitle}
+        description={t.common.noResultsBody}
+      />
+    </Card>
+  );
+  const pager = (
+    <Pagination
+      basePath={`/${locale}/admin/categories`}
+      params={listParams}
+      page={result.page}
+      pageCount={result.pageCount}
+      pageSize={result.pageSize}
+      total={result.total}
+      labels={t.common}
+    />
+  );
+
   return (
     <div className="mx-auto max-w-7xl">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight sm:text-2xl">
             {messages.nav.categories}
-            {result.total > 0 && <Badge className="tabular-nums">{result.total}</Badge>}
+            {tree.length > 0 && <Badge className="tabular-nums">{tree.length}</Badge>}
           </h1>
           <p className="mt-0.5 hidden text-sm text-muted-foreground sm:block">{c.subtitle}</p>
         </div>
@@ -136,9 +169,19 @@ async function Categories({
 
       <ListToolbar
         viewToggle
+        treeView
         searchLabel={c.searchLabel}
         searchPlaceholder={c.searchPlaceholder}
         filters={[
+          {
+            name: "level",
+            label: c.levelFilter,
+            options: [
+              { value: "", label: c.levelAll },
+              { value: "main", label: c.levelMain },
+              { value: "sub", label: c.levelSub },
+            ],
+          },
           {
             name: "status",
             label: t.common.status,
@@ -151,170 +194,169 @@ async function Categories({
         ]}
       />
 
-      {result.total === 0 ? (
+      {tree.length === 0 ? (
         <Card>
-          {filtered ? (
-            <EmptyState
-              icon={SearchX}
-              title={t.common.noResultsTitle}
-              description={t.common.noResultsBody}
-            />
-          ) : (
-            <EmptyState
-              icon={FolderTree}
-              title={c.emptyTitle}
-              description={c.emptyBody}
-              action={<CategoryDialog parents={parents} />}
-            />
-          )}
+          <EmptyState
+            icon={FolderTree}
+            title={c.emptyTitle}
+            description={c.emptyBody}
+            action={<CategoryDialog parents={parents} />}
+          />
         </Card>
       ) : (
         <ListViews
+          tree={<CategoryTree categories={tree.map(editableRow)} />}
           grid={
-            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-              {result.rows.map((category) => (
-                <li
-                  key={category.id}
-                  className="flex flex-col overflow-hidden rounded-2xl border bg-card transition-[border-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-card"
-                >
-                  <div className="relative">
-                    <CatalogueImage
-                      src={category.image_url}
-                      alt=""
-                      aspect="wide"
-                      sizes="(min-width: 1280px) 230px, (min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
-                      className="w-full rounded-none border-0 border-b"
-                    />
-                    <span className="absolute start-2 top-2 flex rounded-md bg-card shadow-card">
-                      {status(category.is_active)}
-                    </span>
-                  </div>
-                  <div className="flex flex-1 flex-col gap-1 p-3">
-                    <p className="line-clamp-2 text-sm leading-snug font-medium">
-                      <bdi>{category.name}</bdi>
-                      {parentNote(category)}
-                    </p>
-                    <p className="truncate font-mono text-xs text-muted-foreground" dir="ltr">
-                      {category.slug}
-                    </p>
-                    <p className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
-                      {meta(category)}
-                    </p>
-                    <div className="mt-auto flex justify-end gap-1.5 pt-2">{actions(category)}</div>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            result.total === 0 ? (
+              noResults
+            ) : (
+              <>
+                <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                  {result.rows.map((category) => (
+                    <li
+                      key={category.id}
+                      className="flex flex-col overflow-hidden rounded-2xl border bg-card transition-[border-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-card"
+                    >
+                      <div className="relative">
+                        <CatalogueImage
+                          src={category.image_url}
+                          alt=""
+                          aspect="wide"
+                          sizes="(min-width: 1280px) 230px, (min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
+                          className="w-full rounded-none border-0 border-b"
+                        />
+                        <span className="absolute start-2 top-2 flex rounded-md bg-card shadow-card">
+                          {status(category.is_active)}
+                        </span>
+                      </div>
+                      <div className="flex flex-1 flex-col gap-1 p-3">
+                        <p className="line-clamp-2 text-sm leading-snug font-medium">
+                          <bdi>{category.name}</bdi>
+                          {parentNote(category)}
+                        </p>
+                        <p className="truncate font-mono text-xs text-muted-foreground" dir="ltr">
+                          {category.slug}
+                        </p>
+                        <p className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+                          {meta(category)}
+                        </p>
+                        <div className="mt-auto flex justify-end gap-1.5 pt-2">
+                          {actions(category)}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                {pager}
+              </>
+            )
           }
           list={
-            <>
-              {/* Tablet / desktop: table */}
-              <div className="hidden overflow-hidden rounded-2xl border bg-card md:block">
-                <table className="w-full text-sm">
-                  <caption className="sr-only">{messages.nav.categories}</caption>
-                  <thead className="caps border-b text-[0.625rem] text-muted-foreground">
-                    <tr>
-                      <th scope="col" className="px-4 py-3 text-start font-medium">
-                        {c.columns.name}
-                      </th>
-                      <th scope="col" className="px-4 py-3 text-start font-medium">
-                        {c.columns.status}
-                      </th>
-                      <th scope="col" className="px-4 py-3 text-end font-medium">
-                        {c.columns.products}
-                      </th>
-                      <th scope="col" className="px-4 py-3 text-end font-medium">
-                        {c.columns.sortOrder}
-                      </th>
-                      <th
-                        scope="col"
-                        className="hidden px-4 py-3 text-start font-medium lg:table-cell"
-                      >
-                        {c.columns.updated}
-                      </th>
-                      <th scope="col" className="w-0 px-4 py-3 text-end font-medium">
-                        <span className="sr-only">{c.columns.actions}</span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {result.rows.map((category) => (
-                      <tr key={category.id} className="transition-colors hover:bg-accent/60">
-                        <td className="px-4 py-2">
-                          <div className="flex items-center gap-3">
-                            <CatalogueImage
-                              src={category.image_url}
-                              alt=""
-                              sizes="40px"
-                              className="size-10"
-                            />
-                            <div className="min-w-0">
-                              <p className="line-clamp-1 font-medium">
-                                <bdi>{category.name}</bdi>
-                                {parentNote(category)}
-                              </p>
-                              <p
-                                className="truncate font-mono text-xs text-muted-foreground"
-                                dir="ltr"
-                              >
-                                {category.slug}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-2">{status(category.is_active)}</td>
-                        <td className="px-4 py-2 text-end tabular-nums">{category.productCount}</td>
-                        <td className="px-4 py-2 text-end tabular-nums">{category.sort_order}</td>
-                        <td className="hidden px-4 py-2 whitespace-nowrap text-muted-foreground lg:table-cell">
-                          {date(category.updated_at)}
-                        </td>
-                        <td className="px-4 py-2">
-                          <div className="flex justify-end gap-1.5">{actions(category)}</div>
-                        </td>
+            result.total === 0 ? (
+              noResults
+            ) : (
+              <>
+                {/* Tablet / desktop: table */}
+                <div className="hidden overflow-hidden rounded-2xl border bg-card md:block">
+                  <table className="w-full text-sm">
+                    <caption className="sr-only">{messages.nav.categories}</caption>
+                    <thead className="caps border-b text-[0.625rem] text-muted-foreground">
+                      <tr>
+                        <th scope="col" className="px-4 py-3 text-start font-medium">
+                          {c.columns.name}
+                        </th>
+                        <th scope="col" className="px-4 py-3 text-start font-medium">
+                          {c.columns.status}
+                        </th>
+                        <th scope="col" className="px-4 py-3 text-end font-medium">
+                          {c.columns.products}
+                        </th>
+                        <th scope="col" className="px-4 py-3 text-end font-medium">
+                          {c.columns.sortOrder}
+                        </th>
+                        <th
+                          scope="col"
+                          className="hidden px-4 py-3 text-start font-medium lg:table-cell"
+                        >
+                          {c.columns.updated}
+                        </th>
+                        <th scope="col" className="w-0 px-4 py-3 text-end font-medium">
+                          <span className="sr-only">{c.columns.actions}</span>
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y">
+                      {result.rows.map((category) => (
+                        <tr key={category.id} className="transition-colors hover:bg-accent/60">
+                          <td className="px-4 py-2">
+                            <div className="flex items-center gap-3">
+                              <CatalogueImage
+                                src={category.image_url}
+                                alt=""
+                                sizes="40px"
+                                className="size-10"
+                              />
+                              <div className="min-w-0">
+                                <p className="line-clamp-1 font-medium">
+                                  <bdi>{category.name}</bdi>
+                                  {parentNote(category)}
+                                </p>
+                                <p
+                                  className="truncate font-mono text-xs text-muted-foreground"
+                                  dir="ltr"
+                                >
+                                  {category.slug}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-2">{status(category.is_active)}</td>
+                          <td className="px-4 py-2 text-end tabular-nums">
+                            {category.productCount}
+                          </td>
+                          <td className="px-4 py-2 text-end tabular-nums">{category.sort_order}</td>
+                          <td className="hidden px-4 py-2 whitespace-nowrap text-muted-foreground lg:table-cell">
+                            {date(category.updated_at)}
+                          </td>
+                          <td className="px-4 py-2">
+                            <div className="flex justify-end gap-1.5">{actions(category)}</div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
-              {/* Phones: compact rows */}
-              <ul className="divide-y overflow-hidden rounded-2xl border bg-card md:hidden">
-                {result.rows.map((category) => (
-                  <li key={category.id} className="flex items-center gap-3 px-3 py-2.5">
-                    <CatalogueImage
-                      src={category.image_url}
-                      alt=""
-                      sizes="48px"
-                      className="size-12"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="line-clamp-1 text-sm font-medium">
-                        <bdi>{category.name}</bdi>
-                        {parentNote(category)}
-                      </p>
-                      <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                        {status(category.is_active)}
-                        {meta(category)}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 gap-1.5">{actions(category)}</div>
-                  </li>
-                ))}
-              </ul>
-            </>
+                {/* Phones: compact rows */}
+                <ul className="divide-y overflow-hidden rounded-2xl border bg-card md:hidden">
+                  {result.rows.map((category) => (
+                    <li key={category.id} className="flex items-center gap-3 px-3 py-2.5">
+                      <CatalogueImage
+                        src={category.image_url}
+                        alt=""
+                        sizes="48px"
+                        className="size-12"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="line-clamp-1 text-sm font-medium">
+                          <bdi>{category.name}</bdi>
+                          {parentNote(category)}
+                        </p>
+                        <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                          {status(category.is_active)}
+                          {meta(category)}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 gap-1.5">{actions(category)}</div>
+                    </li>
+                  ))}
+                </ul>
+                {pager}
+              </>
+            )
           }
         />
       )}
-
-      <Pagination
-        basePath={`/${locale}/admin/categories`}
-        params={listParams}
-        page={result.page}
-        pageCount={result.pageCount}
-        pageSize={result.pageSize}
-        total={result.total}
-        labels={t.common}
-      />
     </div>
   );
 }

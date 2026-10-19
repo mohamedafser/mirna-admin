@@ -11,6 +11,104 @@ export type Database = {
   };
   public: {
     Tables: {
+      currencies: {
+        Row: {
+          code: string;
+          symbol: string;
+          decimals: number;
+          is_active: boolean;
+          is_default: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          code: string;
+          symbol: string;
+          decimals: number;
+          is_active?: boolean;
+          is_default?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          code?: string;
+          symbol?: string;
+          decimals?: number;
+          is_active?: boolean;
+          is_default?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      country_currency: {
+        Row: {
+          country_code: string;
+          currency_code: string;
+        };
+        Insert: {
+          country_code: string;
+          currency_code: string;
+        };
+        Update: {
+          country_code?: string;
+          currency_code?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "country_currency_currency_code_fkey";
+            columns: ["currency_code"];
+            isOneToOne: false;
+            referencedRelation: "currencies";
+            referencedColumns: ["code"];
+          },
+        ];
+      };
+      product_prices: {
+        Row: {
+          id: string;
+          product_id: string;
+          variant_id: string | null;
+          currency_code: string;
+          price: number;
+          sale_price: number | null;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          product_id: string;
+          variant_id?: string | null;
+          currency_code: string;
+          price: number;
+          sale_price?: number | null;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          product_id?: string;
+          variant_id?: string | null;
+          currency_code?: string;
+          price?: number;
+          sale_price?: number | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "product_prices_product_id_fkey";
+            columns: ["product_id"];
+            isOneToOne: false;
+            referencedRelation: "products";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "product_prices_currency_code_fkey";
+            columns: ["currency_code"];
+            isOneToOne: false;
+            referencedRelation: "currencies";
+            referencedColumns: ["code"];
+          },
+        ];
+      };
       addresses: {
         Row: {
           additional_instructions: string | null;
@@ -508,6 +606,42 @@ export type Database = {
           },
         ];
       };
+      product_categories: {
+        Row: {
+          category_id: string;
+          created_at: string;
+          id: string;
+          product_id: string;
+        };
+        Insert: {
+          category_id: string;
+          created_at?: string;
+          id?: string;
+          product_id: string;
+        };
+        Update: {
+          category_id?: string;
+          created_at?: string;
+          id?: string;
+          product_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "product_categories_category_id_fkey";
+            columns: ["category_id"];
+            isOneToOne: false;
+            referencedRelation: "categories";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "product_categories_product_id_fkey";
+            columns: ["product_id"];
+            isOneToOne: false;
+            referencedRelation: "products";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       product_images: {
         Row: {
           alt_text: string | null;
@@ -551,6 +685,66 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      product_tags: {
+        Row: {
+          created_at: string;
+          product_id: string;
+          tag_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          product_id: string;
+          tag_id: string;
+        };
+        Update: {
+          created_at?: string;
+          product_id?: string;
+          tag_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "product_tags_product_id_fkey";
+            columns: ["product_id"];
+            isOneToOne: false;
+            referencedRelation: "products";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "product_tags_tag_id_fkey";
+            columns: ["tag_id"];
+            isOneToOne: false;
+            referencedRelation: "tags";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      tags: {
+        Row: {
+          created_at: string;
+          id: string;
+          is_active: boolean;
+          name: string;
+          slug: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          is_active?: boolean;
+          name: string;
+          slug: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          is_active?: boolean;
+          name?: string;
+          slug?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
       };
       product_type_attributes: {
         Row: {
@@ -867,9 +1061,12 @@ export type Database = {
           address_line1: string | null;
           address_line2: string | null;
           allow_customer_cancellation: boolean;
+          business_hours: Json | null;
           city: string | null;
           contact_email: string | null;
           contact_phone: string | null;
+          contact_published: boolean;
+          contact_whatsapp: string | null;
           country_code: string;
           currency_code: string;
           default_locale: string;
@@ -888,6 +1085,12 @@ export type Database = {
           postal_code: string | null;
           prices_include_tax: boolean;
           shipping_fee: number;
+          social_facebook: string | null;
+          social_instagram: string | null;
+          social_snapchat: string | null;
+          social_tiktok: string | null;
+          social_x: string | null;
+          social_youtube: string | null;
           state_region: string | null;
           store_name: string;
           tax_enabled: boolean;
@@ -901,9 +1104,12 @@ export type Database = {
           address_line1?: string | null;
           address_line2?: string | null;
           allow_customer_cancellation?: boolean;
+          business_hours?: Json | null;
           city?: string | null;
           contact_email?: string | null;
           contact_phone?: string | null;
+          contact_published?: boolean;
+          contact_whatsapp?: string | null;
           country_code: string;
           currency_code: string;
           default_locale: string;
@@ -922,6 +1128,12 @@ export type Database = {
           postal_code?: string | null;
           prices_include_tax?: boolean;
           shipping_fee?: number;
+          social_facebook?: string | null;
+          social_instagram?: string | null;
+          social_snapchat?: string | null;
+          social_tiktok?: string | null;
+          social_x?: string | null;
+          social_youtube?: string | null;
           state_region?: string | null;
           store_name: string;
           tax_enabled?: boolean;
@@ -935,9 +1147,12 @@ export type Database = {
           address_line1?: string | null;
           address_line2?: string | null;
           allow_customer_cancellation?: boolean;
+          business_hours?: Json | null;
           city?: string | null;
           contact_email?: string | null;
           contact_phone?: string | null;
+          contact_published?: boolean;
+          contact_whatsapp?: string | null;
           country_code?: string;
           currency_code?: string;
           default_locale?: string;
@@ -956,6 +1171,12 @@ export type Database = {
           postal_code?: string | null;
           prices_include_tax?: boolean;
           shipping_fee?: number;
+          social_facebook?: string | null;
+          social_instagram?: string | null;
+          social_snapchat?: string | null;
+          social_tiktok?: string | null;
+          social_x?: string | null;
+          social_youtube?: string | null;
           state_region?: string | null;
           store_name?: string;
           tax_enabled?: boolean;
@@ -1029,6 +1250,40 @@ export type Database = {
       };
     };
     Functions: {
+      set_default_currency: {
+        Args: { p_code: string };
+        Returns: undefined;
+      };
+      set_product_prices: {
+        Args: { p_product_id: string; p_prices: Json };
+        Returns: undefined;
+      };
+      import_product_prices: {
+        Args: { p_rows: Json };
+        Returns: number;
+      };
+      store_contact: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          store_name: string;
+          contact_email: string | null;
+          contact_phone: string | null;
+          contact_whatsapp: string | null;
+          address_line1: string | null;
+          address_line2: string | null;
+          city: string | null;
+          state_region: string | null;
+          postal_code: string | null;
+          country_code: string;
+          business_hours: Json | null;
+          social_instagram: string | null;
+          social_facebook: string | null;
+          social_tiktok: string | null;
+          social_snapchat: string | null;
+          social_x: string | null;
+          social_youtube: string | null;
+        }[];
+      };
       adjust_variant_inventory: {
         Args: {
           p_variant_id: string;
@@ -1102,6 +1357,14 @@ export type Database = {
       };
       set_attribute_values: {
         Args: { p_attribute_id: string; p_values: Json };
+        Returns: undefined;
+      };
+      set_product_categories: {
+        Args: { p_product_id: string; p_category_ids: string[] };
+        Returns: undefined;
+      };
+      set_product_tags: {
+        Args: { p_product_id: string; p_tag_ids: string[] };
         Returns: undefined;
       };
       set_product_attributes: {
