@@ -36,7 +36,8 @@ export type VariantError =
   | "productReserved"
   | "tooMany"
   | "hasStock"
-  | "hasHistory";
+  | "hasHistory"
+  | "hasReserved";
 
 export type GenerateResult = { ok: true; count: number } | { ok: false; error: VariantError };
 
@@ -230,8 +231,8 @@ export async function setVariantActive(id: string, active: boolean): Promise<Act
 }
 
 /**
- * Deletes a variant that has no stock and no stock history; otherwise the
- * database refuses (trigger / FK) and the admin is told to deactivate it.
+ * Deletes one variant. Any stock it has is cleared to 0 first (recorded in
+ * its history, which is kept); variants with reserved units are refused.
  */
 export async function deleteVariant(
   id: string,
@@ -239,13 +240,43 @@ export async function deleteVariant(
   if (!(await getAdminOrNull())) return { ok: false, error: "forbidden" };
   if (!isUuid(id)) return { ok: false, error: "notFound" };
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const { data: variant, error: readError } = await supabase
     .from("product_variants")
-    .delete()
+    .select("product_id")
     .eq("id", id)
-    .select("id");
-  if (error) return { ok: false, error: mapError(error, "delete variant") };
-  if (data.length === 0) return { ok: false, error: "notFound" };
-  refresh();
+    .maybeSingle();
+  if (readError) return { ok: false, error: mapError(readError, "read variant") };
+  if (!variant) return { ok: false, error: "notFound" };
+  const result = await deleteVariants(variant.product_id, [id]);
+  if (!result.ok) return result;
+  if (result.deleted === 0) return { ok: false, error: "hasReserved" };
   return { ok: true };
+}
+
+/**
+ * Deletes several of a product's variants (bulk selection) in one
+ * transaction. Stock is cleared to 0 first (recorded in history, which is
+ * kept under the variant's SKU); variants with reserved units are skipped.
+ */
+export async function deleteVariants(
+  productId: string,
+  ids: string[],
+): Promise<{ ok: true; deleted: number; skipped: number } | { ok: false; error: VariantError }> {
+  if (!(await getAdminOrNull())) return { ok: false, error: "forbidden" };
+  const unique = [...new Set(ids)];
+  if (!isUuid(productId) || unique.length === 0 || !unique.every(isUuid)) {
+    return { ok: false, error: "notFound" };
+  }
+  if (unique.length > MAX_VARIANTS_PER_CALL) return { ok: false, error: "tooMany" };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("delete_product_variants", {
+    p_product_id: productId,
+    p_variant_ids: unique,
+    p_clear_stock: true,
+  });
+  if (error) return { ok: false, error: mapError(error, "delete variants") };
+  const { deleted, skipped } = data as { deleted: number; skipped: number };
+  refresh();
+  return { ok: true, deleted, skipped };
 }

@@ -375,6 +375,7 @@ export type Database = {
           quantity_before: number;
           reason: Database["public"]["Enums"]["inventory_adjustment_reason"];
           variant_id: string | null;
+          variant_sku: string | null;
         };
         Insert: {
           adjustment_quantity: number;
@@ -389,6 +390,7 @@ export type Database = {
           quantity_before: number;
           reason: Database["public"]["Enums"]["inventory_adjustment_reason"];
           variant_id?: string | null;
+          variant_sku?: string | null;
         };
         Update: {
           adjustment_quantity?: number;
@@ -403,6 +405,7 @@ export type Database = {
           quantity_before?: number;
           reason?: Database["public"]["Enums"]["inventory_adjustment_reason"];
           variant_id?: string | null;
+          variant_sku?: string | null;
         };
         Relationships: [
           {
@@ -1319,6 +1322,10 @@ export type Database = {
         };
         Returns: Database["public"]["Tables"]["inventory"]["Row"];
       };
+      delete_product_variants: {
+        Args: { p_product_id: string; p_variant_ids: string[]; p_clear_stock?: boolean };
+        Returns: Json;
+      };
       generate_product_variants: {
         Args: { p_product_id: string; p_variants: Json; p_stock_variant?: number | null };
         Returns: number;
@@ -1389,7 +1396,8 @@ export type Database = {
         | "returned"
         | "manual_correction"
         | "other"
-        | "variant_migration";
+        | "variant_migration"
+        | "variant_deleted";
       inventory_adjustment_type: "increase" | "decrease" | "set";
       order_status:
         "PENDING" | "CONFIRMED" | "PROCESSING" | "SHIPPED" | "DELIVERED" | "CANCELLED" | "REFUNDED";

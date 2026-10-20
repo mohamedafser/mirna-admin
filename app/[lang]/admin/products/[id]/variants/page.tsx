@@ -14,6 +14,12 @@ import { AdjustStockDialog, type AdjustableItem } from "@/components/inventory/a
 import { StockStatusBadge } from "@/components/inventory/stock-status-badge";
 import { VariantDialog, type EditableVariant } from "@/components/variants/variant-dialog";
 import { VariantGenerator } from "@/components/variants/variant-generator";
+import {
+  SelectAllVariants,
+  SelectOutdatedVariants,
+  SelectVariant,
+  VariantSelection,
+} from "@/components/variants/variant-selection";
 import { Badge } from "@/components/ui/badge";
 import { buttonClassName } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -129,6 +135,25 @@ async function Variants({
     alt_text,
   }));
 
+  // Reserved units block deletion (stock is cleared first, history is kept).
+  const inUse = (row: VariantRow) => (row.reserved_quantity ?? 0) > 0;
+  const deletable = rows
+    .filter((row) => !inUse(row))
+    .map((row) => ({
+      id: row.variant_id,
+      quantity: row.quantity ?? 0,
+      outdated: !current.has(row.combination_key),
+    }));
+  const anyOutdated = deletable.some((variant) => variant.outdated);
+  const select = (row: VariantRow, className?: string) => (
+    <SelectVariant
+      id={row.variant_id}
+      name={label(row)}
+      disabled={inUse(row)}
+      className={className}
+    />
+  );
+
   const outdated = (row: VariantRow) =>
     !current.has(row.combination_key) && (
       <Badge tone="warning" title={t.outdatedHint} className="py-0">
@@ -167,7 +192,7 @@ async function Variants({
         kind="variant"
         id={row.variant_id}
         name={label(row)}
-        inUse={(row.quantity ?? 0) > 0 || (row.reserved_quantity ?? 0) > 0}
+        inUse={inUse(row)}
       />
     </>
   );
@@ -295,13 +320,28 @@ async function Variants({
                 />
               </Card>
             ) : (
-              <>
+              // A new page or filter starts a fresh selection.
+              <VariantSelection
+                key={JSON.stringify({ ...pageParams, page: result.page })}
+                productId={id}
+                variants={deletable}
+              >
+                <div
+                  className={`mb-2 flex flex-wrap items-center gap-2 px-1 text-sm text-muted-foreground ${anyOutdated ? "" : "lg:hidden"}`}
+                >
+                  <SelectAllVariants withLabel className="me-auto lg:invisible" />
+                  <SelectOutdatedVariants />
+                </div>
+
                 {/* Desktop: table */}
                 <div className="hidden overflow-hidden rounded-2xl border bg-card lg:block">
                   <table className="w-full text-sm">
                     <caption className="sr-only">{t.title}</caption>
                     <thead className="caps border-b text-[0.625rem] text-muted-foreground">
                       <tr>
+                        <th scope="col" className="w-0 ps-4 py-3 text-start font-medium">
+                          <SelectAllVariants className="align-middle" />
+                        </th>
                         <th scope="col" className="px-4 py-3 text-start font-medium">
                           {t.columns.variant}
                         </th>
@@ -328,6 +368,7 @@ async function Variants({
                     <tbody className="divide-y">
                       {rows.map((row) => (
                         <tr key={row.variant_id} className="transition-colors hover:bg-accent/60">
+                          <td className="ps-4 py-2">{select(row, "align-middle")}</td>
                           <td className="px-4 py-2">
                             <div className="flex items-center gap-3">
                               <CatalogueImage
@@ -392,6 +433,7 @@ async function Variants({
                       className="grid gap-2.5 rounded-2xl border bg-card p-3"
                     >
                       <div className="flex items-start gap-3">
+                        {select(row, "mt-4")}
                         <CatalogueImage
                           src={row.image_url ?? primary?.public_url ?? null}
                           alt=""
@@ -444,7 +486,7 @@ async function Variants({
                     </li>
                   ))}
                 </ul>
-              </>
+              </VariantSelection>
             )}
 
             <Pagination

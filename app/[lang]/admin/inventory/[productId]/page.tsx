@@ -61,6 +61,8 @@ async function InventoryItem({
   if (!item) notFound();
   // Product with variants: its stock is their total, adjusted per variant.
   const hasVariants = item.variant_count > 0;
+  // Deleted variants keep their history (under their SKU snapshot).
+  const variantColumn = hasVariants || history.rows.some((row) => row.variant_sku);
   const variantsHref = `/${locale}/admin/products/${productId}/variants`;
   const filteredVariant = variantId ? history.rows[0]?.variant?.sku : undefined;
 
@@ -207,7 +209,7 @@ async function InventoryItem({
                         <th scope="col" className="px-4 py-3 text-start font-medium">
                           {h.columns.date}
                         </th>
-                        {hasVariants && (
+                        {variantColumn && (
                           <th scope="col" className="px-3 py-3 text-start font-medium">
                             {h.columns.variant}
                           </th>
@@ -238,9 +240,9 @@ async function InventoryItem({
                               {t.adjust.types[row.adjustment_type]}
                             </span>
                           </td>
-                          {hasVariants && (
+                          {variantColumn && (
                             <td className="px-3 py-2 font-mono text-xs whitespace-nowrap" dir="ltr">
-                              {row.variant?.sku ?? h.productLevel}
+                              {row.variant?.sku ?? row.variant_sku ?? h.productLevel}
                             </td>
                           )}
                           <td className="px-3 py-2 text-end text-muted-foreground tabular-nums">
@@ -304,10 +306,10 @@ async function InventoryItem({
                         </p>
                       )}
                       <p className="text-xs text-muted-foreground">
-                        {row.variant && (
+                        {(row.variant || row.variant_sku) && (
                           <>
                             <span className="font-mono" dir="ltr">
-                              {row.variant.sku}
+                              {row.variant?.sku ?? row.variant_sku}
                             </span>
                             {" · "}
                           </>
