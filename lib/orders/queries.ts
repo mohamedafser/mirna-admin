@@ -105,7 +105,7 @@ export function parseOrderParams(
 }
 
 /** Midnight today in the market's timezone, as an ISO instant. */
-function startOfToday(timeZone: string): string {
+export function startOfToday(timeZone: string): string {
   const now = new Date();
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat("en-US", {

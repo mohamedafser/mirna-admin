@@ -164,6 +164,128 @@
       "network": "Network",
       "online": "Online",
       "offline": "Offline"
+    },
+    "dashboard": {
+      "greeting": {
+        "morning": "Good morning",
+        "afternoon": "Good afternoon",
+        "evening": "Good evening",
+        "withName": "{greeting}, {name}"
+      },
+      "subtitle": "Here's how your store is doing.",
+      "addProduct": "Add product",
+      "viewOrders": "View orders",
+      "periodLabel": "Period",
+      "periods": {
+        "7d": "7 days",
+        "30d": "30 days",
+        "90d": "90 days"
+      },
+      "kpi": {
+        "revenue": "Revenue",
+        "orders": "Orders",
+        "averageOrder": "Average order",
+        "newCustomers": "New customers",
+        "today": "Today: {value}",
+        "change": "{change} vs previous {days} days",
+        "noPrevious": "Nothing in the previous {days} days",
+        "customersTotal": "{count} customers in total",
+        "otherCurrencies": "Also {amounts}"
+      },
+      "chart": {
+        "title": "Daily revenue",
+        "description": "Last {days} days in {currency}. Cancelled and refunded orders are excluded.",
+        "empty": "No sales in this period yet.",
+        "day": "Day",
+        "revenue": "Revenue",
+        "orders": "Orders",
+        "orderCount": "{count} order(s)"
+      },
+      "attention": {
+        "title": "Needs attention",
+        "pending": "Orders to confirm",
+        "toPrepare": "Confirmed, to prepare",
+        "processing": "Being prepared",
+        "shipped": "Shipped, awaiting delivery",
+        "outOfStock": "Products out of stock",
+        "lowStock": "Products low on stock",
+        "variantAlerts": "Products with variant alerts",
+        "allClear": "Nothing needs your attention right now."
+      },
+      "recentOrders": {
+        "title": "Recent orders",
+        "viewAll": "View all",
+        "empty": "No orders yet. They'll appear here as soon as customers check out."
+      },
+      "topProducts": {
+        "title": "Best sellers",
+        "description": "By units sold, last {days} days",
+        "units": "{count} sold",
+        "empty": "No products sold in this period."
+      },
+      "stockAlerts": {
+        "title": "Low stock",
+        "viewAll": "View inventory",
+        "available": "{count} available",
+        "empty": "Every active product is in stock."
+      },
+      "migrationMissing": "Sales figures need database migration 033 (admin_dashboard_summary). Apply it to see revenue, best sellers and customer growth."
+    }
+  },
+  "profile": {
+    "title": "Profile",
+    "subtitle": "Your account details, password and preferences.",
+    "memberSince": "Admin since {date}",
+    "lastSignIn": "Last signed in {date}",
+    "details": {
+      "title": "Personal details",
+      "description": "Your name is shown in the admin and in stock history.",
+      "fullName": "Full name",
+      "email": "Email",
+      "emailHint": "Your sign-in email. Ask another administrator if it needs to change.",
+      "phone": "Phone",
+      "phonePlaceholder": "+971 50 123 4567",
+      "optional": "Optional",
+      "save": "Save changes",
+      "saving": "Saving…",
+      "saved": "Profile saved."
+    },
+    "password": {
+      "title": "Password",
+      "description": "Use at least 8 characters. Other devices stay signed in.",
+      "current": "Current password",
+      "new": "New password",
+      "confirm": "Confirm new password",
+      "save": "Change password",
+      "saving": "Changing…",
+      "saved": "Password changed."
+    },
+    "preferences": {
+      "title": "Preferences",
+      "description": "Saved on this device.",
+      "language": "Language",
+      "theme": "Theme"
+    },
+    "session": {
+      "title": "Session",
+      "description": "Sign out of Mirna Admin on this device."
+    },
+    "errors": {
+      "nameRequired": "Enter your name.",
+      "nameTooLong": "Use 200 characters or fewer.",
+      "phoneInvalid": "Enter a valid phone number, e.g. +971 50 123 4567.",
+      "currentRequired": "Enter your current password.",
+      "currentWrong": "That isn't your current password.",
+      "passwordRequired": "Enter a new password.",
+      "passwordTooShort": "Use at least 8 characters.",
+      "passwordTooLong": "Use 72 characters or fewer.",
+      "passwordSame": "Choose a password different from your current one.",
+      "passwordWeak": "This password is too weak. Try a longer one with mixed characters.",
+      "passwordMismatch": "The passwords don't match.",
+      "forbidden": "Your session has expired. Sign in again.",
+      "tooManyAttempts": "Too many attempts. Wait a minute and try again.",
+      "network": "Can't reach the server. Check your connection and try again.",
+      "unexpected": "Something went wrong. Try again."
     }
   },
   "theme": {
@@ -384,8 +506,7 @@
         "saving": "Saving…",
         "saved": "All changes saved",
         "saveFailed": "Couldn't save the new order. It has been restored.",
-        "inactive": "Inactive",
-        "viewTree": "Structure view"
+        "inactive": "Inactive"
       }
     },
     "tags": {
@@ -1233,6 +1354,16 @@
     "marketHint": "Country, currency, timezone and default language for this store. Dates in the admin use this timezone.",
     "storedHint": "Saved now and applied at checkout in a later phase. Nothing is charged or sent from here.",
     "notificationsHint": "Choose which store events should notify you. Notifications aren't sent yet; these preferences are saved for when they are.",
+    "navLabel": "Settings sections",
+    "groups": {
+      "storefront": "Store profile",
+      "selling": "Selling",
+      "alerts": "Alerts"
+    },
+    "sectionHasErrors": "(has errors)",
+    "fixErrors": "{count} section(s) need attention. Fix the highlighted fields, then save again.",
+    "discard": "Discard",
+    "allSaved": "All changes saved",
     "sections": {
       "store": "Store",
       "contact": "Contact information",

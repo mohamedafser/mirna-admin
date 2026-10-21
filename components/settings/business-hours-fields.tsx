@@ -4,6 +4,7 @@ import { CopyCheck } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/form";
+import { Switch } from "@/components/ui/switch";
 import { useI18n } from "@/lib/i18n/client";
 import { format } from "@/lib/i18n/messages";
 import { WEEKDAYS, type BusinessHours, type Weekday } from "@/lib/settings/rules";
@@ -28,7 +29,7 @@ function initialHours(saved: BusinessHours | null): Record<Weekday, DayState> {
 }
 
 /**
- * Weekly opening hours: one row per day (Monday first) with an "Open" box and
+ * Weekly opening hours: one row per day (Monday first) with an "Open" switch and
  * from / to times. Submits hours.<day>.open / .from / .to; a closed day's
  * times are disabled, so they aren't submitted. A "to" time earlier than
  * "from" means the store closes after midnight.
@@ -86,13 +87,11 @@ export function BusinessHoursFields({
               className="grid gap-2 px-3 py-2.5 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-center"
             >
               <label className="flex min-h-9 items-center gap-3 text-sm">
-                <input
-                  type="checkbox"
+                <Switch
                   name={`hours.${day}.open`}
                   checked={value.open}
                   disabled={disabled}
                   onChange={(event) => update(day, { open: event.target.checked })}
-                  className="size-4 shrink-0 accent-primary"
                 />
                 <span className="font-medium">{dayNames[day]}</span>
               </label>

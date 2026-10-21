@@ -14,7 +14,7 @@ import type { CurrentUser } from "@/types/domain";
 export type MenuUser = Pick<CurrentUser, "fullName" | "email" | "role">;
 
 /**
- * Header account menu: identity, Profile / Settings (placeholders for now),
+ * Header account menu: identity, Profile / Settings links,
  * theme and sign out. Receives the already-authorized user from the server.
  */
 export function UserMenu({ user }: { user: MenuUser }) {

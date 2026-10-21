@@ -1,6 +1,6 @@
 "use client";
 
-import { FolderTree, LayoutGrid, List, LoaderCircle, Search, X } from "lucide-react";
+import { LayoutGrid, List, LoaderCircle, Search, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
@@ -23,23 +23,18 @@ const SEARCH_DEBOUNCE_MS = 350;
  * - Typing is debounced; Enter searches immediately.
  * - A navigation is skipped when the URL wouldn't change (no duplicate requests).
  * - Changing search or a filter returns to page 1; switching List/Grid keeps the page.
- * - With `treeView`, a Structure view is added and becomes the default
- *   (?view=list / ?view=grid pick the others).
  */
 export function ListToolbar({
   searchLabel,
   searchPlaceholder,
   filters,
   viewToggle = false,
-  treeView = false,
 }: {
   searchLabel: string;
   searchPlaceholder: string;
   filters: ToolbarFilter[];
   /** Show the List / Grid switch (?view=grid). */
   viewToggle?: boolean;
-  /** Add a Structure view (categories), shown by default. */
-  treeView?: boolean;
 }) {
   const { messages } = useI18n();
   const t = messages.catalogue.common;
@@ -87,7 +82,7 @@ export function ListToolbar({
   // without a server request: replaceState updates useSearchParams directly.
   function switchView(option: View) {
     const next = new URLSearchParams(window.location.search);
-    if (option === views[0]) next.delete("view");
+    if (option === "list") next.delete("view");
     else next.set("view", option);
     const query = next.toString();
     window.history.replaceState(null, "", query ? `${pathname}?${query}` : pathname);
@@ -99,8 +94,7 @@ export function ListToolbar({
   }
 
   const hasFilters = Boolean(paramQ) || filters.some((filter) => searchParams.get(filter.name));
-  const views: View[] = treeView ? ["tree", "list", "grid"] : ["list", "grid"];
-  const view = currentView(searchParams.get("view"), treeView);
+  const view = currentView(searchParams.get("view"));
 
   return (
     <form
@@ -164,7 +158,7 @@ export function ListToolbar({
               setLastSent("");
               setQ("");
               const keep = new URLSearchParams();
-              if (view !== views[0]) keep.set("view", view);
+              if (view !== "list") keep.set("view", view);
               startTransition(() =>
                 router.replace(keep.size ? `${pathname}?${keep}` : pathname, { scroll: false }),
               );
@@ -181,13 +175,9 @@ export function ListToolbar({
             aria-label={t.view}
             className="ms-auto inline-flex h-11 shrink-0 rounded-md border bg-card p-1"
           >
-            {views.map((option) => {
-              const Icon = { tree: FolderTree, list: List, grid: LayoutGrid }[option];
-              const label = {
-                tree: messages.catalogue.categories.tree.viewTree,
-                list: t.viewList,
-                grid: t.viewGrid,
-              }[option];
+            {VIEWS.map((option) => {
+              const Icon = { list: List, grid: LayoutGrid }[option];
+              const label = { list: t.viewList, grid: t.viewGrid }[option];
               return (
                 <button
                   key={option}
@@ -216,11 +206,10 @@ export function ListToolbar({
   );
 }
 
-type View = "tree" | "list" | "grid";
+const VIEWS = ["list", "grid"] as const;
+type View = (typeof VIEWS)[number];
 
-/** The view in ?view=, falling back to the default (Structure when offered). */
-export function currentView(param: string | null, treeView: boolean): View {
-  if (param === "grid") return "grid";
-  if (param === "list" || !treeView) return "list";
-  return "tree";
+/** The view in ?view=, falling back to the list. */
+export function currentView(param: string | null): View {
+  return param === "grid" ? "grid" : "list";
 }

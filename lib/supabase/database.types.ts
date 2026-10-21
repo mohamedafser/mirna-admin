@@ -1298,6 +1298,16 @@ export type Database = {
         };
         Returns: Database["public"]["Tables"]["variant_inventory"]["Row"];
       };
+      admin_dashboard_summary: {
+        Args: {
+          p_from: string;
+          p_previous_from: string;
+          p_today: string;
+          p_time_zone?: string;
+          p_top_limit?: number;
+        };
+        Returns: Json;
+      };
       admin_get_customer: {
         Args: { p_id: string };
         Returns: Json;
