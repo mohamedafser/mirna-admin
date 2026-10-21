@@ -20,10 +20,9 @@ import {
  * Admin sections — single source for the sidebar, mobile drawer, breadcrumbs,
  * page titles and placeholder routes. Labels live in messages.nav[key].
  *
- * `available: false` sections render a "Coming soon" page through
- * app/[lang]/admin/[section]. When a later phase builds a real section, add
- * its folder (e.g. app/[lang]/admin/products/) — static routes take
- * precedence over [section] — and set available: true.
+ * Every section has its own folder under app/[lang]/admin/. A section added
+ * before its pages exist can be marked `available: false`: the sidebar then
+ * shows a "Coming soon" badge on it.
  */
 export type AdminSectionKey =
   | "dashboard"
@@ -109,11 +108,10 @@ export const adminSections: readonly AdminSection[] = [
   { key: "banner", segment: "banner", icon: GalleryHorizontalEnd, inNav: true, available: true },
   { key: "currencies", segment: "currencies", icon: Coins, inNav: true, available: true },
   { key: "settings", segment: "settings", icon: Settings, inNav: true, available: true },
-  { key: "profile", segment: "profile", icon: UserRound, inNav: false, available: false },
+  { key: "profile", segment: "profile", icon: UserRound, inNav: false, available: true },
 ];
 
 export const navSections = adminSections.filter((section) => section.inNav);
-export const placeholderSections = adminSections.filter((section) => !section.available);
 
 export function sectionHref(locale: string, section: AdminSection): string {
   return `/${locale}/admin${section.segment ? `/${section.segment}` : ""}`;

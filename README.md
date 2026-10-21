@@ -4,7 +4,7 @@ Back-office application for the **Mirna** ecommerce platform: catalogue, invento
 
 Mirna launches in the **UAE** (AE · AED · Asia/Dubai · English/Arabic) and is designed to add countries, currencies and languages without a rewrite.
 
-> **Status: Phase 4 (inventory management).** Phase 1 foundation (schema, RLS, storage, i18n, theme, PWA), Phase 2 auth + admin shell, Phase 3 catalogue (categories, products, images, pricing) and Phase 4 inventory (stock levels, adjustments with history, low-stock thresholds). Phase 13 adds order management (see [Orders](#orders-phase-13)). Customers and Settings are still "Coming soon" placeholders.
+> **Status: Phase 4 (inventory management).** Phase 1 foundation (schema, RLS, storage, i18n, theme, PWA), Phase 2 auth + admin shell, Phase 3 catalogue (categories, products, images, pricing) and Phase 4 inventory (stock levels, adjustments with history, low-stock thresholds). Phase 13 adds order management (see [Orders](#orders-phase-13)).
 
 ---
 
@@ -51,7 +51,6 @@ app/
     admin/                # /[lang]/admin/* (protected admin area)
       layout.tsx          # AdminShell + user menu (requireAdmin)
       page.tsx            # dashboard
-      [section]/page.tsx  # "Coming soon" placeholder for unbuilt sections
       loading.tsx         # skeleton while pages stream in
     access-denied/        # signed-in customers / deactivated users land here
     error.tsx, not-found.tsx
@@ -287,7 +286,7 @@ Anonymous and customer uploads are rejected by Storage RLS policies (migrations 
 - **Sections** are defined once in `config/admin-nav.ts`: Dashboard, **Catalogue** (Categories, Products, Product types, Attributes), **Inventory** (Stock levels), Orders, Customers, Admins, Settings (+ Profile from the user menu). Sections with the same `group` render under one sidebar heading. That file drives the sidebar, the mobile drawer, breadcrumbs, page titles and the placeholder route.
 - **Collapsible sidebar** (md+): collapses to an icon rail; collapsed items show their label as a tooltip. The choice is stored in a cookie and applied before first paint (`lib/sidebar.ts`).
 - **Language / theme** are header popovers (`LocaleMenu`, `ThemeMenu`).
-- **Placeholders:** Orders, Customers and Settings render "Coming soon" through `app/[lang]/admin/[section]`. To build a real section, add its own folder (e.g. `app/[lang]/admin/products/`), which takes precedence over `[section]`, and set `available: true`.
+- **Profile** (`/admin/profile`, from the user menu): the signed-in admin's name and phone (saved with their own session under RLS; role and active status can't be changed here), password change (the current password is checked with a session-less client first, so the admin's cookies are never replaced; other devices stay signed in), language, theme and sign out. The email is read-only.
 - **Active navigation** is derived from the URL, so nested routes (`/admin/products/…`) highlight their section automatically.
 - **Breadcrumbs** are generated from the route (`Dashboard › Products`). On phones only the current page title is shown.
 - **Mobile (< 768 px):** the sidebar becomes a `Sheet` (native modal `<dialog>`). It traps focus, closes with Escape, the backdrop, a route change, or when the viewport grows to desktop size. It slides in from the right in Arabic. The language and theme switchers move into the drawer.
@@ -295,6 +294,17 @@ Anonymous and customer uploads are rejected by Storage RLS policies (migrations 
 - **Page titles** use the `%s | Mirna Admin` template (`Dashboard | Mirna Admin`, localized in Arabic).
 - **Loading:** pages stream in behind a skeleton (`admin/loading.tsx`); the user menu shows an avatar placeholder until the session is verified.
 - **Dashboard** shows a welcome, the signed-in account, workspace settings (locale, currency, timezone) and section shortcuts. It deliberately shows **no business metrics** until real data exists.
+
+## Dashboard
+
+`/[lang]/admin` is the store's daily overview. Use the period switcher (`?period=7d|30d|90d`, default 30 days) to change the range. Days follow the store timezone from Settings.
+
+- **KPIs:** revenue, orders, average order value and new customers. Each shows the change from the previous period of the same length, plus today's figures. Sales leave out CANCELLED and REFUNDED orders. Figures are shown in the store currency, and any other currency's revenue is listed under the revenue tile.
+- **Daily revenue:** one bar per day (store currency), with hover tooltips and a screen-reader table.
+- **Needs attention:** orders to confirm, to prepare, being prepared and shipped, plus products out of or low on stock and products with variant alerts. Each row links to the filtered list.
+- **Recent orders**, **best sellers** (units sold in the period) and **low stock** (active products, least available first).
+
+All sales figures come from one call, `admin_dashboard_summary()` (migration **033**). It is `SECURITY INVOKER` with an `is_admin()` check, aggregates in PostgreSQL and returns amounts as text. Until migration 033 is applied, the dashboard shows a notice in place of the sales figures. Stock alerts and recent orders still work.
 
 ## Catalogue (Phase 3)
 

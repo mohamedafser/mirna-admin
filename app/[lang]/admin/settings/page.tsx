@@ -34,7 +34,7 @@ async function StoreSettingsView() {
   const t = messages.settings;
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-6xl">
       <div className="mb-4 min-w-0">
         <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{t.title}</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">

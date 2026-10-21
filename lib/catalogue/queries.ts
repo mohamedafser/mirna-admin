@@ -10,7 +10,6 @@ import type { Category, Product, ProductImage, Tag } from "@/types/domain";
  * the whole catalogue — and each list is a single query (no N+1).
  */
 
-export const CATEGORY_PAGE_SIZE = 25;
 export const PRODUCT_PAGE_SIZE = 20;
 export const TAG_PAGE_SIZE = 25;
 
@@ -24,8 +23,6 @@ export interface ListParams {
   category: string;
   /** Products only: tag id or "". */
   tag: string;
-  /** Categories only: "main" (top-level), "sub" (subcategories) or "" (all). */
-  level: "" | "main" | "sub";
   /** Presentation only (not a query input). */
   view: "list" | "grid";
   /** Products only: list order ("" = recently updated first). */
@@ -115,7 +112,6 @@ function first(value: string | string[] | undefined): string {
 /** Reads list state from the URL (?q=&status=&category=&page=), clamped to safe values. */
 export function parseListParams(searchParams: Record<string, string | string[] | undefined>) {
   const status = first(searchParams.status);
-  const level = first(searchParams.level);
   const page = Number.parseInt(first(searchParams.page), 10);
   return {
     q: first(searchParams.q).trim().slice(0, 100),
@@ -123,7 +119,6 @@ export function parseListParams(searchParams: Record<string, string | string[] |
     page: Number.isFinite(page) && page > 0 ? page : 1,
     category: first(searchParams.category),
     tag: first(searchParams.tag),
-    level: level === "main" || level === "sub" ? level : "",
     view: first(searchParams.view) === "grid" ? "grid" : "list",
     sort: isProductSort(first(searchParams.sort)) ? (first(searchParams.sort) as ProductSort) : "",
   } satisfies ListParams;
@@ -185,39 +180,9 @@ const countOf = (value: unknown) => (value as { count: number }[] | null)?.[0]?.
 // Categories
 // ---------------------------------------------------------------------------
 
-export async function listCategories(params: ListParams): Promise<Page<CategoryRow>> {
-  const supabase = await createClient();
-  // Product counts are aggregated in the same query: every product listed in
-  // the category (main or extra) once migration 027 exists, else by main
-  // category. The FK hint keeps the embed unambiguous.
-  const counted = (await hasTaxonomy())
-    ? "*, assigned:product_categories(count)"
-    : "*, assigned:products!products_category_id_fkey(count)";
-  let query = supabase
-    .from("categories")
-    .select(counted as "*, assigned:product_categories(count)", { count: "exact" })
-    .order("sort_order", { ascending: true })
-    .order("name", { ascending: true });
-
-  const pattern = searchPattern(params.q);
-  if (pattern) query = query.or(`name.ilike.${pattern},slug.ilike.${pattern}`);
-  if (params.status !== "all") query = query.eq("is_active", params.status === "active");
-  if (params.level === "main") query = query.is("parent_id", null);
-  if (params.level === "sub") query = query.not("parent_id", "is", null);
-
-  const { data, error, count } = await query.range(...pageRange(params.page, CATEGORY_PAGE_SIZE));
-  if (error) fail("categories", error);
-
-  const rows = data.map(({ assigned, ...category }) => ({
-    ...category,
-    productCount: countOf(assigned),
-  }));
-  return toPage(rows, count ?? 0, params.page, CATEGORY_PAGE_SIZE);
-}
-
 /**
  * Every category with its product count, in display order, for the
- * drag-and-drop structure view (categories are few: no pagination).
+ * drag-and-drop categories tree (categories are few: no pagination).
  */
 export async function listCategoryTree(): Promise<CategoryRow[]> {
   const supabase = await createClient();
