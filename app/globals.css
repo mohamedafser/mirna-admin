@@ -4,12 +4,10 @@
  * Semantic design tokens. Components use these (bg-background, text-primary,
  * border-border, …) — never raw hex values — so the palette can change here.
  *
- * Brand palette: burgundy #800020 (primary) and beige #f5f5dc (secondary).
- * Light: burgundy buttons, header and accents on a beige-tinted page. Dark:
- * beige text on a near-black burgundy page; filled surfaces (buttons, active
- * items) stay #800020, while text-sized accents (checks, focus rings) use a
- * light burgundy tint (#f0a8b4), since #800020 text on dark would be
- * unreadable. Every text pair meets WCAG AA.
+ * Brand palette (same as the storefront): oxblood burgundy #291113 (primary)
+ * and greige #dbd2c7 (secondary). Light: burgundy buttons, header and accents
+ * on a warm off-white page. Dark: off-white text on a near-black burgundy
+ * page, with greige buttons and accents. Every text pair meets WCAG AA.
  *
  * Theme resolution:
  *   <html data-theme="light">  → light
@@ -18,25 +16,25 @@
  */
 :root {
   color-scheme: light;
-  --background: #fbfbf2;
-  --foreground: #2b0a11;
+  --background: #faf7f3;
+  --foreground: #291113;
   --card: #ffffff;
-  --card-foreground: #2b0a11;
+  --card-foreground: #291113;
   --popover: #ffffff;
-  --popover-foreground: #2b0a11;
-  --primary: #800020;
-  --primary-foreground: #f5f5dc;
-  --secondary: #f5f5dc;
-  --secondary-foreground: #800020;
-  --muted: #f2f1e1;
-  --muted-foreground: #6b5a55;
-  --accent: #efedd6;
-  --accent-foreground: #2b0a11;
-  --brand-soft: #f5f5dc;
-  --brand-soft-foreground: #800020;
-  --border: #e5e2c9;
-  --input: #968a7d;
-  --ring: #800020;
+  --popover-foreground: #291113;
+  --primary: #291113;
+  --primary-foreground: #faf7f3;
+  --secondary: #dbd2c7;
+  --secondary-foreground: #291113;
+  --muted: #f2ece5;
+  --muted-foreground: #655754;
+  --accent: #ebe4dc;
+  --accent-foreground: #291113;
+  --brand-soft: #dbd2c7;
+  --brand-soft-foreground: #291113;
+  --border: #e4dbd1;
+  --input: #958680;
+  --ring: #291113;
   --success: #15803d;
   --success-foreground: #ffffff;
   --warning: #a16207;
@@ -44,102 +42,102 @@
   --error: #b91c1c;
   --error-foreground: #ffffff;
   /* Burgundy for calls to action and the top header. */
-  --brand: #800020;
-  --brand-hover: #660019;
-  --brand-foreground: #f5f5dc;
-  --outline: #800020;
-  --outline-foreground: #f5f5dc;
-  --header: #800020;
-  --header-foreground: #f5f5dc;
-  --header-muted: rgb(245 245 220 / 0.75);
-  --header-accent: rgb(245 245 220 / 0.12);
-  --header-border: #660019;
-  --header-primary: #f5f5dc;
-  --header-primary-foreground: #800020;
+  --brand: #291013;
+  --brand-hover: #3d1a1e;
+  --brand-foreground: #faf7f3;
+  --outline: #291013;
+  --outline-foreground: #faf7f3;
+  --header: #291013;
+  --header-foreground: #faf7f3;
+  --header-muted: rgb(250 247 243 / 0.75);
+  --header-accent: rgb(250 247 243 / 0.12);
+  --header-border: #3d1a1e;
+  --header-primary: #faf7f3;
+  --header-primary-foreground: #291113;
 }
 
 /* Dark values are listed twice: once for the explicit choice, once for "system". */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --background: #16090b;
-  --foreground: #f5f5dc;
-  --card: #1f0d11;
-  --card-foreground: #f5f5dc;
-  --popover: #241015;
-  --popover-foreground: #f5f5dc;
-  --primary: #f0a8b4;
-  --primary-foreground: #2b0a11;
-  --secondary: #33171c;
-  --secondary-foreground: #f5f5dc;
-  --muted: #261114;
-  --muted-foreground: #b3a69c;
-  --accent: #2e1519;
-  --accent-foreground: #f5f5dc;
-  --brand-soft: #3a1119;
-  --brand-soft-foreground: #f5f5dc;
-  --border: #3b2427;
-  --input: #8a7a72;
-  --ring: #f0a8b4;
+  --background: #170d0e;
+  --foreground: #efe8e1;
+  --card: #1f1214;
+  --card-foreground: #efe8e1;
+  --popover: #231517;
+  --popover-foreground: #efe8e1;
+  --primary: #dbd2c7;
+  --primary-foreground: #291113;
+  --secondary: #3a2124;
+  --secondary-foreground: #efe8e1;
+  --muted: #26171a;
+  --muted-foreground: #ab9d96;
+  --accent: #301d20;
+  --accent-foreground: #efe8e1;
+  --brand-soft: #2e1a1c;
+  --brand-soft-foreground: #efe8e1;
+  --border: #3a2a2b;
+  --input: #85736f;
+  --ring: #dbd2c7;
   --success: #4ade80;
   --success-foreground: #052e16;
   --warning: #facc15;
   --warning-foreground: #2e2405;
   --error: #f87171;
   --error-foreground: #2c0606;
-  --brand: #800020;
-  --brand-hover: #9a1030;
-  --brand-foreground: #f5f5dc;
-  --outline: #f5f5dc;
-  --outline-foreground: #16090b;
-  --header: rgb(22 9 11 / 0.8);
-  --header-foreground: #f5f5dc;
-  --header-muted: #b3a69c;
-  --header-accent: #2e1519;
-  --header-border: #3b2427;
-  --header-primary: #800020;
-  --header-primary-foreground: #f5f5dc;
+  --brand: #dbd2c7;
+  --brand-hover: #c4b9ae;
+  --brand-foreground: #291113;
+  --outline: #efe8e1;
+  --outline-foreground: #170d0e;
+  --header: rgb(23 13 14 / 0.8);
+  --header-foreground: #efe8e1;
+  --header-muted: #ab9d96;
+  --header-accent: #301d20;
+  --header-border: #3a2a2b;
+  --header-primary: #dbd2c7;
+  --header-primary-foreground: #291113;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
     color-scheme: dark;
-    --background: #16090b;
-    --foreground: #f5f5dc;
-    --card: #1f0d11;
-    --card-foreground: #f5f5dc;
-    --popover: #241015;
-    --popover-foreground: #f5f5dc;
-    --primary: #f0a8b4;
-    --primary-foreground: #2b0a11;
-    --secondary: #33171c;
-    --secondary-foreground: #f5f5dc;
-    --muted: #261114;
-    --muted-foreground: #b3a69c;
-    --accent: #2e1519;
-    --accent-foreground: #f5f5dc;
-    --brand-soft: #3a1119;
-    --brand-soft-foreground: #f5f5dc;
-    --border: #3b2427;
-    --input: #8a7a72;
-    --ring: #f0a8b4;
+    --background: #170d0e;
+    --foreground: #efe8e1;
+    --card: #1f1214;
+    --card-foreground: #efe8e1;
+    --popover: #231517;
+    --popover-foreground: #efe8e1;
+    --primary: #dbd2c7;
+    --primary-foreground: #291113;
+    --secondary: #3a2124;
+    --secondary-foreground: #efe8e1;
+    --muted: #26171a;
+    --muted-foreground: #ab9d96;
+    --accent: #301d20;
+    --accent-foreground: #efe8e1;
+    --brand-soft: #2e1a1c;
+    --brand-soft-foreground: #efe8e1;
+    --border: #3a2a2b;
+    --input: #85736f;
+    --ring: #dbd2c7;
     --success: #4ade80;
     --success-foreground: #052e16;
     --warning: #facc15;
     --warning-foreground: #2e2405;
     --error: #f87171;
     --error-foreground: #2c0606;
-    --brand: #800020;
-    --brand-hover: #9a1030;
-    --brand-foreground: #f5f5dc;
-    --outline: #f5f5dc;
-    --outline-foreground: #16090b;
-    --header: rgb(22 9 11 / 0.8);
-    --header-foreground: #f5f5dc;
-    --header-muted: #b3a69c;
-    --header-accent: #2e1519;
-    --header-border: #3b2427;
-    --header-primary: #800020;
-    --header-primary-foreground: #f5f5dc;
+    --brand: #dbd2c7;
+    --brand-hover: #c4b9ae;
+    --brand-foreground: #291113;
+    --outline: #efe8e1;
+    --outline-foreground: #170d0e;
+    --header: rgb(23 13 14 / 0.8);
+    --header-foreground: #efe8e1;
+    --header-muted: #ab9d96;
+    --header-accent: #301d20;
+    --header-border: #3a2a2b;
+    --header-primary: #dbd2c7;
+    --header-primary-foreground: #291113;
   }
 }
 
@@ -183,8 +181,8 @@
 
   /* As on the storefront: surfaces are flat and bordered; shadow-card is
      reserved for overlays (modal, dropdowns, sheet, toasts). */
-  --shadow-card: 0 1px 2px rgb(43 10 17 / 0.04), 0 6px 20px -8px rgb(43 10 17 / 0.08);
-  --shadow-elevated: 0 16px 40px -12px rgb(43 10 17 / 0.22);
+  --shadow-card: 0 1px 2px rgb(41 17 19 / 0.04), 0 6px 20px -8px rgb(41 17 19 / 0.08);
+  --shadow-elevated: 0 16px 40px -12px rgb(41 17 19 / 0.22);
 
   /* Softly rounded surfaces: every radius step is 4px so cards, inputs,
      buttons and menus match. rounded-full is kept for status dots and

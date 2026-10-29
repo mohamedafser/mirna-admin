@@ -212,13 +212,18 @@ export function readProduct(data: FormData): ProductInput {
 /**
  * `reserved` is the product's reserved quantity when known (edit form); stock
  * can't go below it. The database re-checks it inside adjust_inventory().
+ * `skuOptional`: a new product may leave the SKU empty (one is generated).
  */
-export function validateProduct(input: ProductInput, reserved = 0): ProductFieldErrors {
+export function validateProduct(
+  input: ProductInput,
+  reserved = 0,
+  { skuOptional = false } = {},
+): ProductFieldErrors {
   const errors: ProductFieldErrors = {};
   errors.name = validateName(input.name);
   errors.slug = validateSlug(input.slug);
 
-  if (!input.sku) errors.sku = "skuRequired";
+  if (!input.sku) errors.sku = skuOptional ? undefined : "skuRequired";
   else if (!SKU_PATTERN.test(input.sku)) errors.sku = "skuInvalid";
 
   if (!input.categoryId) errors.categoryId = "categoryRequired";

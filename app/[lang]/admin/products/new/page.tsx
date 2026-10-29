@@ -10,7 +10,11 @@ import { supportedCurrencies } from "@/config/region";
 import { getAttributeCatalog } from "@/lib/attributes/queries";
 import { listCurrencies } from "@/lib/currencies/queries";
 import { requireAdmin } from "@/lib/auth/dal";
-import { listCategoryOptions, listTagOptions } from "@/lib/catalogue/queries";
+import {
+  getSuggestedProductSku,
+  listCategoryOptions,
+  listTagOptions,
+} from "@/lib/catalogue/queries";
 import { getLocale, getMessages } from "@/lib/i18n/server";
 import { getStoreRegion } from "@/lib/settings/queries";
 
@@ -31,13 +35,15 @@ export default async function NewProductPage() {
 async function NewProduct() {
   const [locale, messages] = await Promise.all([getLocale(), getMessages()]);
   await requireAdmin(locale);
-  const [categories, region, attributeCatalog, tags, priceCurrencies] = await Promise.all([
-    listCategoryOptions(),
-    getStoreRegion(),
-    getAttributeCatalog(),
-    listTagOptions(),
-    listCurrencies(),
-  ]);
+  const [categories, region, attributeCatalog, tags, priceCurrencies, suggestedSku] =
+    await Promise.all([
+      listCategoryOptions(),
+      getStoreRegion(),
+      getAttributeCatalog(),
+      listTagOptions(),
+      listCurrencies(),
+      getSuggestedProductSku(),
+    ]);
   const p = messages.catalogue.products;
   const hasActiveCategory = categories.some((category) => category.isActive);
 
@@ -63,6 +69,7 @@ async function NewProduct() {
           priceCurrencies={priceCurrencies}
           attributeCatalog={attributeCatalog}
           tags={tags}
+          suggestedSku={suggestedSku}
         />
       ) : (
         <Card>

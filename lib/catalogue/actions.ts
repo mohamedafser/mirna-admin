@@ -31,6 +31,7 @@ import {
   type ImageFileError,
 } from "./images";
 import { hasTaxonomy } from "./queries";
+import { nextProductSku } from "./sku";
 import { slugify } from "./slug";
 import {
   hasFieldErrors,
@@ -504,7 +505,7 @@ export async function saveProduct(
   const version = String(data.get("updatedAt") ?? "");
   const input = readProduct(data);
   // Reserved units are re-checked by adjust_inventory(); here only the input.
-  const fieldErrors = validateProduct(input);
+  const fieldErrors = validateProduct(input, 0, { skuOptional: !id });
   if (hasFieldErrors(fieldErrors)) return fieldFailure(fieldErrors);
 
   const supabase = await createClient();
@@ -543,6 +544,7 @@ export async function saveProduct(
       const { rows, errors } = readCurrencyPrices(
         String(data.get(CURRENCY_PRICES_FIELD)),
         currencies,
+        input.currencyCode,
       );
       if (Object.keys(errors).length > 0) {
         return { ...fieldFailure<ProductFieldErrors>({}), priceErrors: errors };
@@ -560,12 +562,13 @@ export async function saveProduct(
   if (categoryError) return dbFailure(categoryError, "read category");
   if (!category) return fieldFailure({ categoryId: "categoryInvalid" });
 
-  let current: { updated_at: string; category_id: string | null } | null = null;
+  let current: { updated_at: string; category_id: string | null; currency_code: string } | null =
+    null;
   if (id) {
     if (!isUuid(id)) return formError("notFound");
     const { data: row, error } = await supabase
       .from("products")
-      .select("updated_at, category_id")
+      .select("updated_at, category_id, currency_code")
       .eq("id", id)
       .maybeSingle();
     if (error) return dbFailure(error, "read product");
@@ -616,6 +619,9 @@ export async function saveProduct(
     const expected = parseWholeNumber(String(data.get("expectedStock") ?? ""));
     // Each part is saved even if an earlier one failed; the first problem is reported.
     const warnings = [
+      current && current.currency_code !== input.currencyCode
+        ? await moveVariantsToBaseCurrency(supabase, id, input.currencyCode)
+        : undefined,
       await saveProductInventory(supabase, id, input, expected, "updated"),
       await saveProductAttributes(supabase, id, productTypeId, attributeRows),
       taxonomy ? await saveProductAssignments(supabase, id, input) : undefined,
@@ -626,11 +632,32 @@ export async function saveProduct(
     return { status: "success", fieldErrors: {}, id, mode: "updated", warning, at: Date.now() };
   }
 
-  const { data: created, error } = await supabase
-    .from("products")
-    .insert({ ...values, is_active: input.isActive })
-    .select("id")
-    .single();
+  // An empty SKU, or the generated one the form suggested, is (re)generated
+  // here; if another product took it meanwhile, the next number is tried.
+  const autoSku = !input.sku || input.sku === String(data.get("suggestedSku") ?? "");
+  let attempt = 0;
+  let insert;
+  do {
+    if (autoSku && (attempt > 0 || !input.sku)) {
+      try {
+        values.sku = await nextProductSku(supabase);
+      } catch (skuError) {
+        return dbFailure(skuError as PostgrestError, "generate sku");
+      }
+    }
+    insert = await supabase
+      .from("products")
+      .insert({ ...values, is_active: input.isActive })
+      .select("id")
+      .single();
+    attempt += 1;
+  } while (
+    autoSku &&
+    attempt < 3 &&
+    insert.error?.code === "23505" &&
+    `${insert.error.message} ${insert.error.details ?? ""}`.includes("sku")
+  );
+  const { data: created, error } = insert;
   if (error) return dbFailure(error, "create product");
   // The insert triggers already created the inventory row with 0 units and
   // the main category's assignment.
@@ -747,6 +774,58 @@ async function saveProductPrices(
   });
   if (!error) return undefined;
   log("set product prices", error);
+  return "pricesNotSaved";
+}
+
+/**
+ * After a product's own currency changed (e.g. INR → AED): its variants'
+ * price columns are amounts in that currency, so they are re-pointed at the
+ * new one. A variant keeps its own price in the new currency when it has
+ * one; otherwise it gets the product's new price (nothing is converted).
+ * Done by upserting each variant's product_prices row in the new currency:
+ * the 031 sync trigger then writes the variant columns, exactly as when a
+ * variant price is saved. Rows in the old currency stay as prices in it.
+ */
+async function moveVariantsToBaseCurrency(
+  supabase: Supabase,
+  productId: string,
+  currency: string,
+): Promise<CatalogueWarning | undefined> {
+  const [variants, prices] = await Promise.all([
+    supabase.from("product_variants").select("id").eq("product_id", productId),
+    supabase
+      .from("product_prices")
+      .select("variant_id, price, sale_price")
+      .eq("product_id", productId)
+      .eq("currency_code", currency),
+  ]);
+  const error = variants.error ?? prices.error;
+  if (error) {
+    log("read variant prices", error);
+    return "pricesNotSaved";
+  }
+  const variantRows = variants.data ?? [];
+  const priceRows = prices.data ?? [];
+  if (variantRows.length === 0) return undefined;
+  // The product's own row in the new currency (written by the product update).
+  const base = priceRows.find((row) => row.variant_id === null);
+  if (!base) return "pricesNotSaved";
+  const own = new Map(priceRows.map((row) => [row.variant_id, row]));
+  const { error: upsertError } = await supabase.from("product_prices").upsert(
+    variantRows.map(({ id }) => {
+      const row = own.get(id) ?? base;
+      return {
+        product_id: productId,
+        variant_id: id,
+        currency_code: currency,
+        price: row.price,
+        sale_price: row.sale_price,
+      };
+    }),
+    { onConflict: "product_id,variant_id,currency_code" },
+  );
+  if (!upsertError) return undefined;
+  log("move variant prices", upsertError);
   return "pricesNotSaved";
 }
 

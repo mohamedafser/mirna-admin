@@ -147,6 +147,8 @@ export interface AttributeInput {
   dataType: string;
   unit: string;
   allowsMultiple: boolean;
+  /** Choice types: customers pick it (one variant per value), else a detail only. */
+  createsVariants: boolean;
   description: string;
   isActive: boolean;
   values: ValueInput[];
@@ -175,6 +177,7 @@ export function readAttribute(data: FormData): AttributeInput {
     dataType: text(data, "dataType"),
     unit: text(data, "unit"),
     allowsMultiple: data.get("allowsMultiple") === "on",
+    createsVariants: data.get("createsVariants") === "on",
     description: text(data, "description"),
     isActive: data.get("isActive") === "on",
     values,

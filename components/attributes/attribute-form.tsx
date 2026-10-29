@@ -39,6 +39,7 @@ export interface EditableAttribute {
   data_type: AttributeDataType;
   unit: string | null;
   allows_multiple: boolean;
+  creates_variants: boolean;
   description: string | null;
   is_active: boolean;
   updated_at: string;
@@ -302,6 +303,21 @@ export function AttributeForm({ attribute }: { attribute?: EditableAttribute }) 
                     {errorText(fieldErrors.allowsMultiple)}
                   </span>
                 )}
+              </span>
+            </label>
+          )}
+          {choice && (
+            <label className="flex items-start gap-3 rounded-xl border p-3 text-sm">
+              <input
+                type="checkbox"
+                name="createsVariants"
+                disabled={pending}
+                defaultChecked={attribute?.creates_variants ?? true}
+                className="mt-0.5 size-4 accent-primary"
+              />
+              <span>
+                <span className="block font-medium">{f.createsVariants}</span>
+                <span className="block text-xs text-muted-foreground">{f.createsVariantsHint}</span>
               </span>
             </label>
           )}

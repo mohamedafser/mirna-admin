@@ -589,6 +589,7 @@
         "slugEditWarning": "Changing the slug changes this product's storefront URL. Old links won't redirect.",
         "sku": "SKU",
         "skuHint": "Your unique stock code, like MIR-WAL-001.",
+        "skuAutoHint": "Filled with the next number automatically. Type your own code to replace it.",
         "category": "Main category",
         "categoryPlaceholder": "Choose a category",
         "inactiveCategory": "{name} (inactive)",
@@ -642,21 +643,22 @@
       "variantsNamed": "Variants: {count}",
       "prices": {
         "title": "Prices by currency",
-        "hint": "The product is sold only in currencies with a price; prices are never converted. Leave a currency empty to not sell in it. Variants use these prices unless they have their own (set in the variant editor for {base}, or by CSV).",
+        "hint": "Every active currency needs a selling price; prices are never converted. Add a regular price only to show a discount: it must be higher than the selling price. Variants use these prices unless they have their own (set in the variant editor for {base}, or by CSV).",
         "currency": "Currency",
         "price": "Price",
-        "salePrice": "Sale price",
-        "base": "Required",
-        "baseHint": "{code} is this product's own currency: its price is required.",
+        "salePrice": "Selling price",
+        "base": "Base",
+        "baseHint": "{code} is this product's own currency.",
         "inactive": "Disabled",
-        "notSold": "Not sold"
+        "notSold": "Not sold",
+        "optional": "Optional"
       },
       "priceErrors": {
         "priceRequired": "Enter a price.",
         "priceInvalid": "Enter an amount above 0.",
         "priceTooManyDecimals": "Too many decimals for this currency.",
         "priceTooLarge": "This amount is too large.",
-        "salePriceNotLower": "The sale price must be lower than the price."
+        "salePriceNotLower": "The selling price must be lower than the regular price."
       },
       "list": {
         "selectNamed": "Select {name}",
@@ -837,6 +839,8 @@
         "unitHint": "Shown after the number, like cm or ml.",
         "allowsMultiple": "Allow several values per product",
         "allowsMultipleHint": "For example, a dress offered in sizes S, M and L.",
+        "createsVariants": "Customers choose it",
+        "createsVariantsHint": "With several values, each one becomes a variant customers pick (Size, Color). Turn off for details like Fabric: the values are listed in the product details instead.",
         "description": "Description",
         "descriptionHint": "Internal note for admins.",
         "active": "Active",

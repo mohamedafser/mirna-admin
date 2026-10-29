@@ -222,6 +222,7 @@ export type Database = {
         Row: {
           allows_multiple: boolean;
           code: string;
+          creates_variants: boolean;
           created_at: string;
           data_type: string;
           description: string | null;
@@ -234,6 +235,7 @@ export type Database = {
         Insert: {
           allows_multiple?: boolean;
           code: string;
+          creates_variants?: boolean;
           created_at?: string;
           data_type: string;
           description?: string | null;
@@ -246,6 +248,7 @@ export type Database = {
         Update: {
           allows_multiple?: boolean;
           code?: string;
+          creates_variants?: boolean;
           created_at?: string;
           data_type?: string;
           description?: string | null;

@@ -189,6 +189,7 @@ export interface AttributeDetail {
   data_type: AttributeDataType;
   unit: string | null;
   allows_multiple: boolean;
+  creates_variants: boolean;
   description: string | null;
   is_active: boolean;
   updated_at: string;
@@ -209,7 +210,7 @@ export const getAttribute = cache(async (id: string): Promise<AttributeDetail | 
   const { data, error } = await supabase
     .from("attributes")
     .select(
-      `id, name, code, data_type, unit, allows_multiple, description, is_active, updated_at,
+      `id, name, code, data_type, unit, allows_multiple, creates_variants, description, is_active, updated_at,
        product_type_attributes(count), product_attributes(count),
        values:attribute_values!attribute_values_attribute_id_fkey(id, value, color_hex, is_active, sort_order, product_attributes(count))`,
     )
