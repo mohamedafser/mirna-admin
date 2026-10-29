@@ -115,7 +115,7 @@ export async function loadVariantAxes(supabase: Supabase, productId: string) {
       .from("product_attributes")
       .select(
         `attribute_value_id,
-         attribute:attributes!product_attributes_attribute_id_fkey(id, name, data_type, allows_multiple),
+         attribute:attributes!product_attributes_attribute_id_fkey(id, name, data_type, allows_multiple, creates_variants),
          value:attribute_values!product_attributes_value_fkey(id, value, color_hex, sort_order)`,
       )
       .eq("product_id", productId)
@@ -138,7 +138,8 @@ export async function loadVariantAxes(supabase: Supabase, productId: string) {
   for (const row of rows.data!) {
     const attribute = row.attribute;
     const value = row.value;
-    if (!attribute || !value || !attribute.allows_multiple) continue;
+    // Same rule as generate_product_variants() (migration 036).
+    if (!attribute || !value || !attribute.allows_multiple || !attribute.creates_variants) continue;
     if (attribute.data_type !== "SELECT" && attribute.data_type !== "COLOR") continue;
     const axis = axes.get(attribute.id) ?? {
       attributeId: attribute.id,

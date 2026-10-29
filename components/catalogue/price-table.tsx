@@ -3,14 +3,11 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/form";
-import {
-  minorToDecimal,
-  parsePriceRow,
-  type Currency,
-  type PriceError,
-} from "@/lib/currency/money";
+import type { Currency, PriceError } from "@/lib/currency/money";
 import {
   CURRENCY_PRICES_FIELD,
+  parseSellingRow,
+  sellingRowInput,
   type PriceInput,
   type PriceRowErrors,
 } from "@/lib/currency/product-prices";
@@ -19,19 +16,21 @@ import { format } from "@/lib/i18n/messages";
 import { cn } from "@/lib/utils/cn";
 
 /**
- * One row per currency: regular price and optional sale price. The row in
- * the product's own currency (`base`) is required and is posted as the
- * product's price / compare-at fields (sale → price, regular → compare-at),
- * so saving and validating the product itself is unchanged; the other rows
- * are posted as JSON (`currencyPrices`) and saved with set_product_prices().
- * Shows every active currency, plus inactive ones that already have a price.
+ * One row per currency: optional regular price and the selling price, which
+ * every active currency requires. The row in the product's own currency
+ * (`base`) is posted as the product's price / compare-at fields (selling →
+ * price, regular → compare-at), so saving and validating the product itself
+ * is unchanged; the other rows are posted as JSON (`currencyPrices`) and
+ * saved with set_product_prices(). Shows every active currency, plus inactive
+ * ones that already have a price (optional: empty = not sold in it).
  */
 export function PriceTable({
   currencies,
   base,
   initial,
   serverErrors,
-  baseError,
+  baseErrors,
+  validate,
   disabled,
   onChange,
 }: {
@@ -42,7 +41,9 @@ export function PriceTable({
   initial: Record<string, { price: number | string; salePrice: number | string | null }>;
   serverErrors?: PriceRowErrors;
   /** Error text for the base row from the product's own price validation. */
-  baseError?: string;
+  baseErrors?: { price?: string; salePrice?: string };
+  /** Show "required" errors on rows not edited yet (after a save attempt). */
+  validate: boolean;
   disabled: boolean;
   onChange: () => void;
 }) {
@@ -58,12 +59,7 @@ export function PriceTable({
         const saved = initial[currency.code];
         return [
           currency.code,
-          {
-            currency: currency.code,
-            price: saved ? minorToDecimal(saved.price, currency.decimals) : "",
-            salePrice:
-              saved?.salePrice != null ? minorToDecimal(saved.salePrice, currency.decimals) : "",
-          },
+          { currency: currency.code, ...sellingRowInput(saved, currency.decimals) },
         ];
       }),
     ),
@@ -86,18 +82,8 @@ export function PriceTable({
     <div className="grid gap-3">
       {/* The base row, as the product's own price fields (see above). */}
       <input type="hidden" name="currencyCode" value={base} readOnly />
-      <input
-        type="hidden"
-        name="price"
-        value={baseRow.salePrice.trim() || baseRow.price}
-        readOnly
-      />
-      <input
-        type="hidden"
-        name="compareAtPrice"
-        value={baseRow.salePrice.trim() ? baseRow.price : ""}
-        readOnly
-      />
+      <input type="hidden" name="price" value={baseRow.salePrice} readOnly />
+      <input type="hidden" name="compareAtPrice" value={baseRow.price} readOnly />
       <input
         type="hidden"
         name={CURRENCY_PRICES_FIELD}
@@ -125,13 +111,21 @@ export function PriceTable({
             {shown.map((currency) => {
               const row = values[currency.code];
               const isBase = currency.code === base;
-              const live = parsePriceRow(row.price, row.salePrice, currency.decimals);
+              const live = parseSellingRow(
+                row.price,
+                row.salePrice,
+                currency.decimals,
+                isBase || currency.isActive,
+              );
+              const showLive = validate || edited.has(currency.code);
               const errors = {
                 ...(edited.has(currency.code) ? {} : serverErrors?.[currency.code]),
-                ...(live.ok ? {} : live.errors),
+                ...(live.ok || !showLive ? {} : live.errors),
               };
-              const priceError = errorText(errors.price) ?? (isBase ? baseError : undefined);
-              const saleError = errorText(errors.salePrice);
+              const priceError =
+                errorText(errors.price) ?? (isBase ? baseErrors?.price : undefined);
+              const saleError =
+                errorText(errors.salePrice) ?? (isBase ? baseErrors?.salePrice : undefined);
               const placeholder =
                 currency.decimals > 0 ? `0.${"0".repeat(currency.decimals)}` : "0";
               const inputId = (field: string) => `price-${currency.code}-${field}`;
@@ -163,7 +157,8 @@ export function PriceTable({
                           dir="ltr"
                           autoComplete="off"
                           disabled={disabled}
-                          placeholder={field === "price" && !isBase ? t.notSold : placeholder}
+                          required={field === "salePrice" && (isBase || currency.isActive)}
+                          placeholder={field === "price" ? t.optional : placeholder}
                           value={row[field]}
                           aria-invalid={error ? true : undefined}
                           aria-describedby={error ? `${inputId(field)}-error` : undefined}

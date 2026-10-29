@@ -227,6 +227,7 @@ export async function saveAttribute(
     data_type: type,
     unit: type === "NUMBER" ? input.unit || null : null,
     allows_multiple: choice && input.allowsMultiple,
+    creates_variants: !choice || input.createsVariants,
     description: input.description || null,
     is_active: input.isActive,
   };

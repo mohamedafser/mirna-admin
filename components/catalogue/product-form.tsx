@@ -111,6 +111,8 @@ interface ProductFormProps {
   tags: TagOption[] | null;
   /** Side column content for an existing product (its image manager). */
   aside?: ReactNode;
+  /** New product: the next generated SKU, filled in as the default. */
+  suggestedSku?: string | null;
 }
 
 const initialState: ProductFormResult = { status: "idle", fieldErrors: {}, at: 0 };
@@ -170,6 +172,7 @@ function ProductFormFields({
   attributeCatalog,
   tags,
   aside,
+  suggestedSku = null,
   dirty,
   setDirty,
 }: ProductFormProps & { dirty: boolean; setDirty: (dirty: boolean) => void }) {
@@ -189,10 +192,21 @@ function ProductFormFields({
   const [slug, setSlug] = useState(product?.slug ?? "");
   // An existing slug, or one the admin typed, is never overwritten by the name.
   const [slugTouched, setSlugTouched] = useState(Boolean(product));
+  // Products are based in the store currency (Settings) when it's an active
+  // currency: new ones start in it, and an existing product in another
+  // currency is switched to it on save (the Base tag shows it). Without
+  // it: the product's own currency, else the Currencies page default.
+  const storeCurrencyActive = priceCurrencies?.some(
+    (option) => option.code === defaultCurrency && option.isActive,
+  );
   const [currency, setCurrency] = useState(
-    product?.currency_code ??
-      priceCurrencies?.find((option) => option.isDefault)?.code ??
-      defaultCurrency,
+    !priceCurrencies || storeCurrencyActive
+      ? product && !priceCurrencies
+        ? product.currency_code
+        : defaultCurrency
+      : (product?.currency_code ??
+          priceCurrencies.find((option) => option.isDefault)?.code ??
+          defaultCurrency),
   );
   const [images, setImages] = useState<PendingImage[]>([]);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -201,6 +215,8 @@ function ProductFormFields({
   const [stock, setStock] = useState(String(loadedStock));
   const [threshold, setThreshold] = useState(String(product?.inventory?.threshold ?? 0));
   const [mainCategoryId, setMainCategoryId] = useState(product?.category_id ?? "");
+  // After a save attempt the price table also flags rows not edited yet.
+  const [pricesChecked, setPricesChecked] = useState(false);
   const id = useId();
   const formId = `${id}-form`;
 
@@ -286,11 +302,15 @@ function ProductFormFields({
     if (pending) return;
     const form = event.currentTarget;
     const data = new FormData(form);
-    const errors = validateProduct(readProduct(data), reserved);
+    const errors = validateProduct(readProduct(data), reserved, { skuOptional: !product });
     // Prices in other currencies (the base currency is the product's own price above).
     const priceIssues = priceCurrencies
       ? Object.keys(
-          readCurrencyPrices(String(data.get(CURRENCY_PRICES_FIELD) ?? ""), priceCurrencies).errors,
+          readCurrencyPrices(
+            String(data.get(CURRENCY_PRICES_FIELD) ?? ""),
+            priceCurrencies,
+            currency,
+          ).errors,
         )
       : [];
     let attributeIssues: Record<string, ProductAttributeError> = {};
@@ -306,6 +326,7 @@ function ProductFormFields({
       attributeIssues = checked.errors;
     }
     const firstAttribute = Object.keys(attributeIssues)[0];
+    setPricesChecked(true);
     if (Object.keys(errors).length > 0 || firstAttribute || priceIssues.length > 0) {
       setClientErrors(errors);
       setClientAttributeErrors(attributeIssues);
@@ -402,22 +423,32 @@ function ProductFormFields({
               <Field
                 id={`${id}-sku`}
                 label={f.sku}
-                hint={f.skuHint}
+                hint={product ? f.skuHint : f.skuAutoHint}
                 error={errorText(fieldErrors.sku)}
               >
                 {(a11y) => (
-                  <Input
-                    {...a11y}
-                    name="sku"
-                    dir="ltr"
-                    maxLength={SKU_MAX_LENGTH}
-                    required
-                    autoCapitalize="characters"
-                    spellCheck={false}
-                    disabled={pending}
-                    defaultValue={product?.sku ?? ""}
-                    className="font-mono"
-                  />
+                  <>
+                    <Input
+                      {...a11y}
+                      name="sku"
+                      dir="ltr"
+                      maxLength={SKU_MAX_LENGTH}
+                      required={Boolean(product)}
+                      autoCapitalize="characters"
+                      spellCheck={false}
+                      disabled={pending}
+                      defaultValue={product?.sku ?? suggestedSku ?? ""}
+                      className="font-mono"
+                    />
+                    {!product && (
+                      <input
+                        type="hidden"
+                        name="suggestedSku"
+                        value={suggestedSku ?? ""}
+                        readOnly
+                      />
+                    )}
+                  </>
                 )}
               </Field>
               <Field
@@ -494,7 +525,11 @@ function ProductFormFields({
                 base={currency}
                 initial={prices}
                 serverErrors={state.priceErrors}
-                baseError={errorText(fieldErrors.price ?? fieldErrors.compareAtPrice)}
+                baseErrors={{
+                  price: errorText(fieldErrors.compareAtPrice),
+                  salePrice: errorText(fieldErrors.price),
+                }}
+                validate={pricesChecked}
                 disabled={pending}
                 onChange={() => setDirty(true)}
               />

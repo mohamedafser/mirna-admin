@@ -86,30 +86,65 @@ describe("parsePriceRow", () => {
 });
 
 describe("readCurrencyPrices", async () => {
-  const { readCurrencyPrices } = await import("./product-prices.ts");
+  const { readCurrencyPrices, parseSellingRow, sellingRowInput } =
+    await import("./product-prices.ts");
   const currencies = [BHD, USD];
 
-  it("keeps filled rows in minor units and reports bad ones by currency", () => {
+  it("stores a selling price alone as the price, with a regular price as a sale", () => {
     const result = readCurrencyPrices(
       JSON.stringify([
-        { currency: "BHD", price: "2.250", salePrice: "" },
-        { currency: "USD", price: "10", salePrice: "12" },
+        { currency: "BHD", price: "", salePrice: "2.250" },
+        { currency: "USD", price: "12", salePrice: "10" },
         { currency: "XXX", price: "1", salePrice: "" },
       ]),
       currencies,
     );
-    assert.deepEqual(result.rows, [{ currency: "BHD", price: BigInt(2250), salePrice: null }]);
-    assert.deepEqual(result.errors, { USD: { salePrice: "salePriceNotLower" } });
+    assert.deepEqual(result.rows, [
+      { currency: "BHD", price: BigInt(2250), salePrice: null },
+      { currency: "USD", price: BigInt(1200), salePrice: BigInt(1000) },
+    ]);
+    assert.deepEqual(result.errors, {});
   });
 
-  it("drops empty rows (not sold in that currency) and survives bad JSON", () => {
+  it("requires a selling price lower than the regular price", () => {
+    assert.deepEqual(
+      readCurrencyPrices(
+        JSON.stringify([
+          { currency: "BHD", price: "2", salePrice: "" },
+          { currency: "USD", price: "10", salePrice: "12" },
+        ]),
+        currencies,
+      ).errors,
+      { BHD: { salePrice: "priceRequired" }, USD: { salePrice: "salePriceNotLower" } },
+    );
+  });
+
+  it("requires every active currency except the base, and survives bad JSON", () => {
     assert.deepEqual(
       readCurrencyPrices(
         JSON.stringify([{ currency: "USD", price: "", salePrice: "" }]),
-        currencies,
-      ),
-      { rows: [], errors: {} },
+        [...currencies, { code: "EUR", decimals: 2, isActive: false }],
+        "BHD",
+      ).errors,
+      { USD: { salePrice: "priceRequired" } },
     );
-    assert.deepEqual(readCurrencyPrices("{oops", currencies), { rows: [], errors: {} });
+    assert.deepEqual(readCurrencyPrices("{oops", currencies, "BHD").errors, {
+      USD: { salePrice: "priceRequired" },
+    });
+  });
+
+  it("lets an inactive currency stay empty", () => {
+    assert.deepEqual(parseSellingRow("", "", 2, false), { ok: true, minor: null });
+  });
+
+  it("shows a saved price without a sale as the selling price", () => {
+    assert.deepEqual(sellingRowInput({ price: 1250, salePrice: null }, 2), {
+      price: "",
+      salePrice: "12.50",
+    });
+    assert.deepEqual(sellingRowInput({ price: 1250, salePrice: 1000 }, 2), {
+      price: "12.50",
+      salePrice: "10.00",
+    });
   });
 });

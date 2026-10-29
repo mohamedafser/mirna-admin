@@ -199,7 +199,7 @@ async function ProductDetailView({
         currencies={[
           ...new Set([product.currency_code, region.currencyCode, ...supportedCurrencies]),
         ]}
-        defaultCurrency={product.currency_code}
+        defaultCurrency={region.currencyCode}
         priceCurrencies={priceCurrencies}
         prices={prices}
         aside={

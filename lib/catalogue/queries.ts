@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { nextProductSku } from "./sku";
 import type { Category, Product, ProductImage, Tag } from "@/types/domain";
 
 /**
@@ -477,3 +478,12 @@ export const listTagOptions = cache(async (): Promise<TagOption[] | null> => {
   if (error) fail("tag options", error);
   return data.map(({ id, name, is_active }) => ({ id, name, isActive: is_active }));
 });
+
+/** The SKU a new product gets by default (see lib/catalogue/sku.ts); null if unreadable. */
+export async function getSuggestedProductSku(): Promise<string | null> {
+  try {
+    return await nextProductSku(await createClient());
+  } catch {
+    return null;
+  }
+}

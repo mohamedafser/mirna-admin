@@ -317,7 +317,7 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/[lang]/admin">, "sea
                   className={cn(
                     "block rounded-lg px-3 py-1.5 font-medium whitespace-nowrap transition-colors",
                     key === period
-                      ? "bg-foreground text-background"
+                      ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
                   )}
                 >
@@ -350,7 +350,7 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/[lang]/admin">, "sea
 
       {/* KPIs */}
       {kpis.length > 0 && (
-        <div className="mt-4 grid grid-cols-1 gap-3 min-[400px]:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+        <div className="mt-4 grid grid-cols-1 gap-3 min-[400px]:grid-cols-2 sm:gap-4 xl:grid-cols-4">
           {kpis.map((kpi) => (
             <div key={kpi.key} className="flex min-w-0 flex-col rounded-2xl border bg-card p-4">
               <span className="flex items-start justify-between gap-2">
@@ -369,10 +369,10 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/[lang]/admin">, "sea
         </div>
       )}
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+      <div className="mt-4 grid gap-4 xl:grid-cols-3">
         {/* Daily revenue */}
         {summary && (
-          <Card className="flex flex-col lg:col-span-2">
+          <Card className="flex flex-col xl:col-span-2">
             <CardHeader
               icon={Banknote}
               title={t.chart.title}
@@ -393,7 +393,7 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/[lang]/admin">, "sea
         )}
 
         {/* Needs attention */}
-        <Card className={cn(!summary && "lg:col-span-3")}>
+        <Card className={cn(!summary && "xl:col-span-3")}>
           <CardHeader icon={TriangleAlert} title={t.attention.title} />
           {allClear ? (
             <p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -441,9 +441,9 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/[lang]/admin">, "sea
         </Card>
       </div>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+      <div className="mt-4 grid gap-4 xl:grid-cols-3">
         {/* Recent orders */}
-        <Card className="lg:col-span-2">
+        <Card className="xl:col-span-2">
           <CardHeader
             icon={ShoppingCart}
             title={t.recentOrders.title}
@@ -487,7 +487,7 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/[lang]/admin">, "sea
           )}
         </Card>
 
-        <div className="grid content-start gap-4">
+        <div className="grid content-start gap-4 md:grid-cols-2 xl:grid-cols-1">
           {/* Best sellers */}
           {summary && (
             <Card>

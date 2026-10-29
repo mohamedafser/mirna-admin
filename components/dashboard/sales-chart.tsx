@@ -33,8 +33,8 @@ export function SalesChart({
   const axis = [points[0], points[Math.floor((points.length - 1) / 2)], points.at(-1)];
 
   return (
-    <figure>
-      <div aria-hidden className="relative">
+    <figure className="flex flex-1 flex-col">
+      <div aria-hidden className="relative flex flex-1 flex-col">
         {/* Peak value marks the top of the scale; the baseline is zero. */}
         <div className="flex items-center gap-2 text-[0.625rem] text-muted-foreground tabular-nums">
           <span>{peak?.valueLabel}</span>
@@ -42,7 +42,7 @@ export function SalesChart({
         </div>
         <div
           className={cn(
-            "mt-1 flex h-40 items-end border-b sm:h-48",
+            "mt-1 flex min-h-40 flex-1 items-end border-b sm:min-h-48",
             points.length > 40 ? "gap-px" : "gap-0.5",
           )}
         >
