@@ -77,11 +77,14 @@ function editableProduct(
             reserved: stock.reserved_quantity ?? 0,
             threshold: stock.low_stock_threshold ?? 0,
             updatedAt: stock.updated_at,
+            // Product with variants: units its variants hold from this pool.
+            allocated: variantCount > 0 ? (stock.allocated_quantity ?? 0) : undefined,
           }
         : null,
     attributes,
     variantCount,
     taxonomy,
+    weight_grams: product.weight_grams ?? null,
   };
 }
 
@@ -202,6 +205,8 @@ async function ProductDetailView({
         defaultCurrency={region.currencyCode}
         priceCurrencies={priceCurrencies}
         prices={prices}
+        // The column exists once migration 038 is applied (`*` select).
+        weightEnabled={"weight_grams" in product}
         aside={
           <Panel title={p.sections.images}>
             <ProductImages

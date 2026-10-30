@@ -28,12 +28,14 @@ function normalize(raw: string): string {
 }
 
 /**
- * "12.5" in a 2-decimal currency → 1250n. Rejects empty, negative, zero,
- * non-numeric input and more decimals than the currency has.
+ * "12.5" in a 2-decimal currency → 1250n. Rejects empty, negative, zero
+ * (unless `allowZero`, e.g. a free delivery rate), non-numeric input and more
+ * decimals than the currency has.
  */
 export function parseMinor(
   raw: string,
   decimals: number,
+  { allowZero = false }: { allowZero?: boolean } = {},
 ): { ok: true; minor: bigint } | { ok: false; error: PriceError } {
   const input = normalize(raw);
   if (!input) return { ok: false, error: "priceRequired" };
@@ -41,7 +43,9 @@ export function parseMinor(
   const [integer, fraction = ""] = input.split(".");
   if (fraction.length > decimals) return { ok: false, error: "priceTooManyDecimals" };
   const minor = BigInt(integer + fraction.padEnd(decimals, "0"));
-  if (minor <= BigInt(0)) return { ok: false, error: "priceInvalid" };
+  if (minor < BigInt(0) || (minor === BigInt(0) && !allowZero)) {
+    return { ok: false, error: "priceInvalid" };
+  }
   if (minor >= MAX_MINOR) return { ok: false, error: "priceTooLarge" };
   return { ok: true, minor };
 }

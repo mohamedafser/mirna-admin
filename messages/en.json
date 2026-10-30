@@ -128,9 +128,15 @@
     "expandSidebar": "Expand sidebar",
     "groups": {
       "catalogue": "Catalogue",
-      "inventory": "Inventory"
+      "inventory": "Inventory",
+      "sales": "Sales",
+      "store": "Store setup",
+      "admin": "Administration"
     },
-    "currencies": "Currencies"
+    "currencies": "Currencies",
+    "shipping": "Shipping",
+    "stockUpdate": "Update stock",
+    "stockMovements": "Stock movements"
   },
   "admin": {
     "welcomeTitle": "Welcome to Mirna Admin",
@@ -361,7 +367,8 @@
       "viewList": "List view",
       "viewGrid": "Grid view",
       "removeNamed": "Remove {name}",
-      "selectedCount": "{count} selected"
+      "selectedCount": "{count} selected",
+      "noChanges": "No changes to save"
     },
     "errors": {
       "nameRequired": "Enter a name.",
@@ -416,7 +423,10 @@
       "tooManyTags": "Choose up to 100 tags.",
       "categoriesNotSaved": "The product was saved, but its categories couldn't be. Check them and save again.",
       "tagsNotSaved": "The product was saved, but its tags couldn't be. Check them and save again.",
-      "pricesNotSaved": "The product was saved, but its prices in other currencies couldn't be. Check them and save again."
+      "pricesNotSaved": "The product was saved, but its prices in other currencies couldn't be. Check them and save again.",
+      "weightInvalid": "Enter a weight above 0 kg.",
+      "weightTooManyDecimals": "Use at most 3 decimals (grams).",
+      "weightTooLarge": "1,000 kg at most."
     },
     "categories": {
       "subtitle": "Group products for navigation in the storefront.",
@@ -580,7 +590,8 @@
         "status": "Status",
         "images": "Images",
         "inventory": "Inventory",
-        "organization": "Categories and tags"
+        "organization": "Categories and tags",
+        "shipping": "Shipping"
       },
       "fields": {
         "name": "Product name",
@@ -618,7 +629,7 @@
         "stockCurrent": "Current stock",
         "lowStockThreshold": "Low-stock alert",
         "lowStockThresholdHint": "Marked Low stock at or below this many available units. 0 turns it off.",
-        "stockByVariants": "This product has {count} variant(s). Its stock is the total of its active variants and is managed per variant.",
+        "stockByVariants": "Shared by {count} variant(s): give units to them on the variants page. Variants can't hold more than the product's stock.",
         "extraCategories": "Also list in",
         "extraCategoriesHint": "Other categories or subcategories that also show this product. The main category is always included.",
         "extraCategoriesPlaceholder": "Choose categories",
@@ -627,7 +638,9 @@
         "tagsPlaceholder": "Choose tags",
         "tagCreate": "Create tag “{name}”",
         "tagCreated": "Tag “{name}” created.",
-        "inactiveTag": "{name} (inactive)"
+        "inactiveTag": "{name} (inactive)",
+        "weight": "Weight (kg)",
+        "weightHint": "Used for weight-based delivery rates. Variants can set their own."
       },
       "created": "Product created successfully. You can add images now.",
       "updated": "Product updated successfully.",
@@ -692,6 +705,11 @@
           "priceDesc": "Price: high to low"
         },
         "priceSortNote": "Sorted by each product's own-currency price."
+      },
+      "pool": {
+        "total": "Product stock",
+        "allocated": "Allocated",
+        "unallocated": "Unallocated"
       }
     },
     "images": {
@@ -958,11 +976,12 @@
       "nothingNew": "Every combination already exists. Add values on the product to get new ones.",
       "truncated": "Showing the first {count} combinations.",
       "pricesHint": "New variants start with the product's price and SKU-based codes; edit them afterwards.",
-      "stockTarget": "Move existing stock to",
-      "stockTargetHint": "This product has {quantity} unit(s) in stock. They move onto the variant you choose when its first variants are created, and the move is recorded in stock history.",
+      "stockTarget": "Give the product's stock to",
+      "stockTargetHint": "This product has {quantity} unit(s). They stay the product's stock, shared by its variants. Optionally give them all to one new variant now; otherwise share them out on this page after creating the variants.",
       "stockTargetPlaceholder": "Choose a selected variant",
       "show": "Show generator",
-      "hide": "Hide generator"
+      "hide": "Hide generator",
+      "stockTargetNone": "Nobody yet (share out later)"
     },
     "edit": {
       "title": "Edit variant",
@@ -977,7 +996,9 @@
       "imageHint": "Pick one of the product's images. Upload images on the product page.",
       "noImages": "This product has no images yet.",
       "active": "Active",
-      "activeHint": "Inactive variants aren't sold and don't count toward the product's stock."
+      "activeHint": "Inactive variants aren't sold and don't count toward the product's stock.",
+      "weight": "Weight (kg)",
+      "weightHint": "Leave empty to use the product's weight."
     },
     "updated": "Variant updated.",
     "activated": "Variant activated.",
@@ -1102,7 +1123,9 @@
         "manual_correction": "Manual correction",
         "other": "Other",
         "variant_migration": "Moved from product stock",
-        "variant_deleted": "Variant deleted"
+        "variant_deleted": "Variant deleted",
+        "sold": "Sold",
+        "order_cancelled": "Order cancelled"
       },
       "notes": "Notes",
       "notesHint": "Optional. Required when the reason is Other.",
@@ -1121,7 +1144,10 @@
         "set": "Set stock to {count}"
       },
       "thresholdSummary": "Low-stock alert: {threshold}",
-      "thresholdOff": "Low-stock alert: off"
+      "thresholdOff": "Low-stock alert: off",
+      "poolHint": "Its variants hold {allocated}: the product's stock can't go below that.",
+      "variantPoolHint": "Up to {available} more from the product's unallocated stock.",
+      "maxReached": "That's all that's available ({max})."
     },
     "threshold": {
       "label": "Low-stock threshold",
@@ -1147,7 +1173,9 @@
       "conflict": "The stock changed while you were editing. Check the new numbers and try again.",
       "network": "Can't reach the server. Nothing was changed — try again when you're online.",
       "unexpected": "Something went wrong. Nothing was changed — please try again.",
-      "hasVariants": "This product has variants, so its stock is managed per variant."
+      "hasVariants": "This product has variants, so its stock is managed per variant.",
+      "exceedsPool": "That's more than the product's unallocated stock. Add stock to the product first, or take units from another variant.",
+      "belowAllocated": "Its variants hold more units than that. Reduce the variants' stock first."
     },
     "history": {
       "link": "History",
@@ -1168,10 +1196,11 @@
       },
       "unknownAdmin": "Unknown admin",
       "productLevel": "Product",
-      "allVariants": "All stock changes"
+      "allVariants": "All stock changes",
+      "order": "Order #{number}"
     },
     "variantCount": "{count} variant(s)",
-    "managedByVariants": "Stock is the total of this product's active variants. Adjust it per variant.",
+    "managedByVariants": "Product stock is shared by its variants; give units to them on the variants page.",
     "manageVariants": "Manage variants",
     "variantRows": {
       "show": "Show variants: {name}",
@@ -1181,6 +1210,94 @@
       "inactive": "Inactive variant",
       "viewAll": "View all {count} variants",
       "showing": "Showing {shown} of {count} variants, lowest stock first."
+    },
+    "update": {
+      "subtitle": "Receive deliveries, record stock counts or remove damaged goods for many items at once. Everything is saved together and recorded in stock history.",
+      "modeLabel": "What are you doing?",
+      "modes": {
+        "receive": "Receive stock",
+        "count": "Stock count",
+        "remove": "Remove stock"
+      },
+      "modeHints": {
+        "receive": "Add units from a delivery or return.",
+        "count": "Enter what you counted; the difference is recorded.",
+        "remove": "Take out damaged, lost or used units."
+      },
+      "quantityLabels": {
+        "receive": "Units to add",
+        "count": "Counted",
+        "remove": "Units to remove"
+      },
+      "searchLabel": "Find items",
+      "searchPlaceholder": "Product name, SKU or variant…",
+      "addLow": "Add low & out of stock",
+      "nothingLow": "Nothing is low or out of stock.",
+      "noResults": "No items match. Products with variants are listed by variant.",
+      "add": "Add",
+      "added": "Added",
+      "findItems": "Find items",
+      "onHand": "{count} on hand",
+      "reserved": "{count} reserved",
+      "linesTitle": "Items ({count})",
+      "clear": "Clear all",
+      "emptyTitle": "No items yet",
+      "emptyBody": "Search by name or SKU, or add everything that's low or out of stock.",
+      "newOnHand": "New on hand",
+      "noChange": "No change",
+      "remove": "Remove {name}",
+      "notesHint": "E.g. supplier invoice or count reference. Saved on every line.",
+      "summaryItems": "Items changing",
+      "summaryUnits": "Total change",
+      "save": "Save {count} changes",
+      "saved": "Stock updated for {count} items.",
+      "atomicNote": "All lines are saved together: if any line can't be applied, nothing changes.",
+      "fixLines": "Fix the highlighted lines, then save again.",
+      "errors": {
+        "empty": "Add at least one item.",
+        "tooMany": "200 items at most per update.",
+        "duplicate": "An item appears twice. Remove the duplicate.",
+        "nothingToChange": "Nothing would change. Enter quantities first."
+      }
+    },
+    "movements": {
+      "subtitle": "Every stock change across the catalogue: deliveries, counts, write-offs and corrections.",
+      "searchLabel": "Search movements",
+      "searchPlaceholder": "Product name or SKU…",
+      "allTypes": "All adjustments",
+      "allReasons": "All reasons",
+      "period": "Period",
+      "allTime": "All time",
+      "lastDays": "Last {count} days",
+      "item": "Item",
+      "emptyTitle": "No stock movements yet",
+      "emptyBody": "Stock changes appear here as soon as they're made.",
+      "noMatchTitle": "No movements match",
+      "noMatchBody": "Try another search or filter."
+    },
+    "pool": {
+      "total": "Product stock",
+      "allocated": "Allocated to variants",
+      "unallocated": "Unallocated",
+      "explainer": "The product's {total} units are shared by its variants: variants can only hold what the product has. To sell more, add stock to the product first, then give it to variants.",
+      "line": "{allocated} of {total} allocated · {unallocated} unallocated",
+      "itemLabel": "stock pool ({count} variants)"
+    },
+    "share": {
+      "title": "Share out stock to variants",
+      "description": "{name} has stock that no variant holds yet. Customers can only buy units given to a variant.",
+      "remaining": "{remaining} of {total} unallocated left",
+      "over": "{count} too many",
+      "splitEvenly": "Split evenly",
+      "current": "{count} in stock",
+      "less": "One less for {name}",
+      "more": "One more for {name}",
+      "inactive": "Inactive",
+      "skip": "Skip for now",
+      "save": "Give {count} units",
+      "saved": "{count} units shared out to variants.",
+      "note": "Shared out from product stock",
+      "nothingEntered": "Enter how many units each variant gets, or skip."
     }
   },
   "orders": {
@@ -1261,9 +1378,13 @@
       "markAs": "Mark as {status}",
       "cancel": "Cancel order",
       "cancelTitle": "Cancel order #{number}?",
-      "cancelBody": "The order will be marked as cancelled. This can't be undone, and nothing is refunded automatically.",
+      "cancelBody": "The order will be marked as cancelled and its items go back into stock. This can't be undone, and nothing is refunded automatically.",
       "keep": "Keep order",
-      "updated": "Order #{number} is now {status}."
+      "updated": "Order #{number} is now {status}.",
+      "deliveryMethod": "Delivery method",
+      "freeDelivery": "Free delivery applied (usually {amount})",
+      "noDeliveryMethod": "Placed before delivery methods existed",
+      "rateBasis": "{type} · parcel {weight} kg"
     },
     "errors": {
       "forbidden": "You don't have permission to do that.",
@@ -1469,7 +1590,9 @@
       "unexpected": "Something went wrong. Nothing was changed — please try again.",
       "logoUploadFailed": "Settings saved, but the logo couldn't be updated. Try again.",
       "logoCleanupFailed": "Settings saved, but the old logo file couldn't be deleted from storage."
-    }
+    },
+    "shippingMoved": "Delivery charges, free-delivery thresholds and delivery estimates are now set for each country on the Shipping page.",
+    "manageShipping": "Manage shipping"
   },
   "currencies": {
     "subtitle": "Currencies the store sells in, and the countries it ships to. Each product needs a price in a currency to be sold in it; prices are never converted.",
@@ -1562,5 +1685,144 @@
       }
     },
     "switcherOnly": "Not tied to a shipping country: customers pick it in the currency switcher."
+  },
+  "shipping": {
+    "subtitle": "Delivery charges and estimates for each country the store delivers to. Each country is charged in its own currency.",
+    "notReadyTitle": "Shipping isn't set up yet",
+    "notReadyBody": "Apply database migration 037 (shipping management) to configure delivery by country.",
+    "stats": {
+      "countries": "Countries",
+      "delivering": "Delivering",
+      "disabled": "Disabled"
+    },
+    "columns": {
+      "country": "Country",
+      "currency": "Currency",
+      "standard": "Standard",
+      "express": "Express",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "emptyTitle": "No delivery countries yet",
+    "emptyBody": "Add a country to start delivering to it.",
+    "methods": {
+      "STANDARD": "Standard",
+      "EXPRESS": "Express"
+    },
+    "methodHints": {
+      "STANDARD": "Everyday delivery at the lower rate.",
+      "EXPRESS": "Faster delivery at a higher rate."
+    },
+    "rateTypes": {
+      "FLAT": "Flat rate",
+      "WEIGHT_BASED": "Weight-based",
+      "ORDER_BASED": "Order value-based"
+    },
+    "rateTypeHints": {
+      "FLAT": "One charge per order, whatever is in it.",
+      "WEIGHT_BASED": "Priced by parcel weight (product and variant weights).",
+      "ORDER_BASED": "Priced by bands of the order subtotal."
+    },
+    "off": "Off",
+    "free": "Free",
+    "freeOver": "Free over {amount}",
+    "days": {
+      "sameDay": "Same day",
+      "one": "1 day",
+      "other": "{count} days",
+      "range": "{min}–{max} days"
+    },
+    "blocked": "No delivery method is enabled: checkout is blocked.",
+    "configure": "Configure",
+    "configureNamed": "Configure {country}",
+    "enable": "Enable",
+    "disable": "Disable",
+    "enabled": "Delivery to {country} enabled.",
+    "disabled": "Delivery to {country} disabled.",
+    "disableTitle": "Disable delivery to {country}?",
+    "disableBody": "Customers with an address there can't check out until you enable it again. Its rates are kept.",
+    "note": "Changes apply to new checkouts. Placed orders keep the delivery method and charge they were placed with.",
+    "add": {
+      "button": "Add country",
+      "title": "Add a delivery country",
+      "description": "Choose one of the countries the store sells in. It starts disabled with draft Standard and Express methods, so you can set its rates before enabling it.",
+      "country": "Country",
+      "placeholder": "Choose a country",
+      "none": "Every country the store sells in already has a shipping configuration. Add a currency and its countries first to deliver elsewhere.",
+      "added": "{country} added. Set its rates, then enable it.",
+      "submit": "Add country"
+    },
+    "detail": {
+      "backToList": "Back to shipping",
+      "chargedIn": "Charged in {currency}",
+      "lastUpdated": "Last updated {date}",
+      "statusTitle": "Delivery",
+      "statusLabel": "Deliver to {country}",
+      "statusHint": "When off, checkout to this country is blocked. Needs at least one enabled method.",
+      "offer": "Offer {method} delivery",
+      "rateType": "Rate type",
+      "amount": "Rate ({currency})",
+      "amountHint": "Charged once per order. 0 = always free.",
+      "threshold": "Free delivery from ({currency})",
+      "thresholdHint": "Orders with at least this subtotal ship free. Leave empty to always charge.",
+      "minDays": "Delivery from (days)",
+      "maxDays": "Delivery up to (days)",
+      "daysHint": "Shown to customers as the delivery estimate.",
+      "previewTitle": "At checkout",
+      "previewNotOffered": "Not offered",
+      "previewUnavailable": "Customers in {country} can't check out: delivery is disabled.",
+      "save": "Save changes",
+      "saved": "Shipping for {country} saved.",
+      "reload": "Reload",
+      "delete": "Delete",
+      "deleteNamed": "Delete {country}'s shipping",
+      "deleteTitle": "Delete shipping for {country}?",
+      "deleteBody": "Its configuration is removed and checkout to it is blocked. Placed orders keep their own copy of what was charged.",
+      "deleteInUse": "Orders used this configuration, so it can only be disabled.",
+      "deleted": "Shipping for {country} deleted.",
+      "unweighed": "{count} active products have no weight of their own: their items count as 0 kg unless the chosen variant has a weight. Add weights on the product pages.",
+      "kg": "kg",
+      "weightBands": "Weight bands",
+      "weightBandsHint": "Parcel weight = quantity × each item's weight.",
+      "orderBands": "Order value bands",
+      "orderBandsHint": "By the order subtotal, before delivery.",
+      "bandFrom": "From",
+      "bandUpTo": "Up to ({unit})",
+      "bandAndAbove": "and above",
+      "bandRate": "Rate ({currency})",
+      "bandOver": "{from} {unit} and above",
+      "addBand": "Add band",
+      "removeBand": "Remove band {number}",
+      "methodOn": "On"
+    },
+    "errors": {
+      "forbidden": "You don't have permission to change shipping.",
+      "notFound": "This country's shipping configuration no longer exists.",
+      "exists": "This country already has a shipping configuration.",
+      "countryNotSold": "The store doesn't sell in this country. Add it on the Currencies page first.",
+      "noActiveMethod": "Enable at least one delivery method before enabling this country.",
+      "stale": "This configuration was changed meanwhile (another tab or admin). Reload to see the latest version, then save again.",
+      "inUse": "Orders used this configuration, so it can't be deleted. Disable it instead.",
+      "invalid": "Some values aren't valid. Check the form and try again.",
+      "failed": "Couldn't save the change. Please try again."
+    },
+    "fieldErrors": {
+      "priceRequired": "Enter an amount (0 for free delivery).",
+      "priceInvalid": "Enter an amount above 0.",
+      "priceTooManyDecimals": "Too many decimals for this currency.",
+      "priceTooLarge": "This amount is too large.",
+      "daysRequired": "Enter a number of days.",
+      "daysInvalid": "Enter whole days from 0 to 365.",
+      "daysOrder": "Must be at least the first day.",
+      "rateTypeUnsupported": "This rate type isn't available yet.",
+      "weightInvalid": "Enter a weight above 0 kg.",
+      "weightTooManyDecimals": "Use at most 3 decimals (grams).",
+      "weightTooLarge": "1,000 kg at most.",
+      "bandsRequired": "Add at least one band.",
+      "bandsTooMany": "20 bands at most.",
+      "upToRequired": "Enter where this band ends.",
+      "upToNotHigher": "Must be higher than where the band starts."
+    },
+    "fromAmount": "from {amount}"
   }
 }

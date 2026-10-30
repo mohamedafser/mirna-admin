@@ -11,6 +11,8 @@ import { Panel } from "@/components/catalogue/panel";
 import { StatusBadge } from "@/components/catalogue/status-badge";
 import { StatusToggle } from "@/components/catalogue/status-toggle";
 import { AdjustStockDialog, type AdjustableItem } from "@/components/inventory/adjust-stock-dialog";
+import { StockPoolSummary } from "@/components/inventory/stock-pool";
+import { getInventoryItem } from "@/lib/inventory/queries";
 import { StockStatusBadge } from "@/components/inventory/stock-status-badge";
 import { VariantDialog, type EditableVariant } from "@/components/variants/variant-dialog";
 import { VariantGenerator } from "@/components/variants/variant-generator";
@@ -34,6 +36,7 @@ import {
   getVariantAxes,
   getVariantKeys,
   getVariantProduct,
+  getVariantWeights,
   listVariants,
   parseVariantParams,
   type VariantRow,
@@ -72,11 +75,13 @@ async function Variants({
   if (!isUuid(id)) notFound();
   const listParams = parseVariantParams(await searchParams);
 
-  const [product, axes, keys, result] = await Promise.all([
+  const [product, axes, keys, result, weights, stockItem] = await Promise.all([
     getVariantProduct(id),
     getVariantAxes(id),
     getVariantKeys(id),
     listVariants(id, listParams),
+    getVariantWeights(id),
+    getInventoryItem(id),
   ]);
   if (!product) notFound();
   const rows = result.rows;
@@ -119,6 +124,7 @@ async function Variants({
     image_id: row.image_id,
     is_active: row.is_active,
     updated_at: row.updated_at,
+    weight_grams: weights ? (weights.get(row.variant_id) ?? null) : undefined,
   });
   const adjustable = (row: VariantRow): AdjustableItem => ({
     productId: id,
@@ -128,6 +134,8 @@ async function Variants({
     quantity: row.quantity ?? 0,
     reserved: row.reserved_quantity ?? 0,
     threshold: row.low_stock_threshold ?? 0,
+    // A variant holds part of its product's stock pool (migration 042).
+    poolAvailable: stockItem?.unallocated_quantity ?? undefined,
   });
   const images = product.images.map(({ id: imageId, public_url, alt_text }) => ({
     id: imageId,
@@ -233,6 +241,21 @@ async function Variants({
           </Link>
         )}
       </div>
+
+      {hasVariants && stockItem?.inventory_id && (
+        <StockPoolSummary
+          className="mb-4"
+          item={{
+            productId: id,
+            name: product.name,
+            sku: product.sku,
+            quantity: stockItem.quantity ?? 0,
+            reserved: stockItem.reserved_quantity ?? 0,
+            threshold: stockItem.low_stock_threshold ?? 0,
+            allocated: stockItem.allocated_quantity,
+          }}
+        />
+      )}
 
       <div className="grid gap-4">
         {axes.length === 0 ? (

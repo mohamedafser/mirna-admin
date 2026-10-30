@@ -64,6 +64,126 @@ export type Database = {
           },
         ];
       };
+      shipping_countries: {
+        Row: {
+          country_code: string;
+          currency_code: string;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          country_code: string;
+          currency_code: string;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          country_code?: string;
+          currency_code?: string;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "shipping_countries_currency_fkey";
+            columns: ["country_code", "currency_code"];
+            isOneToOne: true;
+            referencedRelation: "country_currency";
+            referencedColumns: ["country_code", "currency_code"];
+          },
+        ];
+      };
+      shipping_methods: {
+        Row: {
+          id: string;
+          country_code: string;
+          code: Database["public"]["Enums"]["shipping_method_code"];
+          rate_type: Database["public"]["Enums"]["shipping_rate_type"];
+          is_active: boolean;
+          free_shipping_threshold: number | null;
+          min_delivery_days: number;
+          max_delivery_days: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          country_code: string;
+          code: Database["public"]["Enums"]["shipping_method_code"];
+          rate_type?: Database["public"]["Enums"]["shipping_rate_type"];
+          is_active?: boolean;
+          free_shipping_threshold?: number | null;
+          min_delivery_days: number;
+          max_delivery_days: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          country_code?: string;
+          code?: Database["public"]["Enums"]["shipping_method_code"];
+          rate_type?: Database["public"]["Enums"]["shipping_rate_type"];
+          is_active?: boolean;
+          free_shipping_threshold?: number | null;
+          min_delivery_days?: number;
+          max_delivery_days?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "shipping_methods_country_code_fkey";
+            columns: ["country_code"];
+            isOneToOne: false;
+            referencedRelation: "shipping_countries";
+            referencedColumns: ["country_code"];
+          },
+        ];
+      };
+      shipping_rates: {
+        Row: {
+          id: string;
+          method_id: string;
+          min_value: number;
+          max_value: number | null;
+          amount: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          method_id: string;
+          min_value?: number;
+          max_value?: number | null;
+          amount: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          method_id?: string;
+          min_value?: number;
+          max_value?: number | null;
+          amount?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "shipping_rates_method_id_fkey";
+            columns: ["method_id"];
+            isOneToOne: false;
+            referencedRelation: "shipping_methods";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       product_prices: {
         Row: {
           id: string;
@@ -366,6 +486,7 @@ export type Database = {
       };
       inventory_adjustments: {
         Row: {
+          order_id: string | null;
           adjustment_quantity: number;
           adjustment_type: Database["public"]["Enums"]["inventory_adjustment_type"];
           created_at: string;
@@ -381,6 +502,7 @@ export type Database = {
           variant_sku: string | null;
         };
         Insert: {
+          order_id?: string | null;
           adjustment_quantity: number;
           adjustment_type: Database["public"]["Enums"]["inventory_adjustment_type"];
           created_at?: string;
@@ -396,6 +518,7 @@ export type Database = {
           variant_sku?: string | null;
         };
         Update: {
+          order_id?: string | null;
           adjustment_quantity?: number;
           adjustment_type?: Database["public"]["Enums"]["inventory_adjustment_type"];
           created_at?: string;
@@ -423,6 +546,13 @@ export type Database = {
             columns: ["inventory_id"];
             isOneToOne: false;
             referencedRelation: "inventory";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "inventory_adjustments_order_id_fkey";
+            columns: ["order_id"];
+            isOneToOne: false;
+            referencedRelation: "orders";
             referencedColumns: ["id"];
           },
           {
@@ -497,6 +627,7 @@ export type Database = {
       };
       orders: {
         Row: {
+          stock_deducted: boolean;
           billing_address_snapshot: Json | null;
           checkout_key: string | null;
           created_at: string;
@@ -506,6 +637,9 @@ export type Database = {
           order_number: number;
           shipping: number;
           shipping_address_snapshot: Json;
+          shipping_method: Database["public"]["Enums"]["shipping_method_code"] | null;
+          shipping_method_id: string | null;
+          shipping_snapshot: Json | null;
           status: Database["public"]["Enums"]["order_status"];
           subtotal: number;
           tax: number;
@@ -514,6 +648,7 @@ export type Database = {
           user_id: string | null;
         };
         Insert: {
+          stock_deducted?: boolean;
           billing_address_snapshot?: Json | null;
           checkout_key?: string | null;
           created_at?: string;
@@ -523,6 +658,9 @@ export type Database = {
           order_number?: never;
           shipping?: number;
           shipping_address_snapshot: Json;
+          shipping_method?: Database["public"]["Enums"]["shipping_method_code"] | null;
+          shipping_method_id?: string | null;
+          shipping_snapshot?: Json | null;
           status?: Database["public"]["Enums"]["order_status"];
           subtotal: number;
           tax?: number;
@@ -531,6 +669,7 @@ export type Database = {
           user_id?: string | null;
         };
         Update: {
+          stock_deducted?: boolean;
           billing_address_snapshot?: Json | null;
           checkout_key?: string | null;
           created_at?: string;
@@ -540,6 +679,9 @@ export type Database = {
           order_number?: never;
           shipping?: number;
           shipping_address_snapshot?: Json;
+          shipping_method?: Database["public"]["Enums"]["shipping_method_code"] | null;
+          shipping_method_id?: string | null;
+          shipping_snapshot?: Json | null;
           status?: Database["public"]["Enums"]["order_status"];
           subtotal?: number;
           tax?: number;
@@ -548,6 +690,13 @@ export type Database = {
           user_id?: string | null;
         };
         Relationships: [
+          {
+            foreignKeyName: "orders_shipping_method_id_fkey";
+            columns: ["shipping_method_id"];
+            isOneToOne: false;
+            referencedRelation: "shipping_methods";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "orders_user_id_fkey";
             columns: ["user_id"];
@@ -823,6 +972,7 @@ export type Database = {
       };
       product_variants: {
         Row: {
+          weight_grams: number | null;
           combination_key: string;
           compare_at_price: number | null;
           created_at: string;
@@ -836,6 +986,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          weight_grams?: number | null;
           combination_key: string;
           compare_at_price?: number | null;
           created_at?: string;
@@ -849,6 +1000,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          weight_grams?: number | null;
           combination_key?: string;
           compare_at_price?: number | null;
           created_at?: string;
@@ -880,6 +1032,7 @@ export type Database = {
       };
       products: {
         Row: {
+          weight_grams: number | null;
           category_id: string | null;
           compare_at_price: number | null;
           created_at: string;
@@ -896,6 +1049,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          weight_grams?: number | null;
           category_id?: string | null;
           compare_at_price?: number | null;
           created_at?: string;
@@ -912,6 +1066,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          weight_grams?: number | null;
           category_id?: string | null;
           compare_at_price?: number | null;
           created_at?: string;
@@ -1206,6 +1361,8 @@ export type Database = {
     Views: {
       inventory_overview: {
         Row: {
+          allocated_quantity: number;
+          unallocated_quantity: number | null;
           available_quantity: number | null;
           category_id: string | null;
           category_name: string | null;
@@ -1256,6 +1413,28 @@ export type Database = {
       };
     };
     Functions: {
+      adjust_stock_batch: {
+        Args: {
+          p_type: Database["public"]["Enums"]["inventory_adjustment_type"];
+          p_reason: Database["public"]["Enums"]["inventory_adjustment_reason"];
+          p_notes: string | null;
+          p_items: Json;
+        };
+        Returns: number;
+      };
+      add_shipping_country: {
+        Args: { p_country_code: string };
+        Returns: undefined;
+      };
+      save_shipping_country: {
+        Args: {
+          p_country_code: string;
+          p_updated_at: string | null;
+          p_is_active: boolean;
+          p_methods: Json;
+        };
+        Returns: string;
+      };
       set_default_currency: {
         Args: { p_code: string };
         Returns: undefined;
@@ -1410,11 +1589,15 @@ export type Database = {
         | "manual_correction"
         | "other"
         | "variant_migration"
-        | "variant_deleted";
+        | "variant_deleted"
+        | "sold"
+        | "order_cancelled";
       inventory_adjustment_type: "increase" | "decrease" | "set";
       order_status:
         "PENDING" | "CONFIRMED" | "PROCESSING" | "SHIPPED" | "DELIVERED" | "CANCELLED" | "REFUNDED";
       user_role: "ADMIN" | "CUSTOMER";
+      shipping_method_code: "STANDARD" | "EXPRESS";
+      shipping_rate_type: "FLAT" | "WEIGHT_BASED" | "ORDER_BASED";
     };
     CompositeTypes: {
       [_ in never]: never;

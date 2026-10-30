@@ -62,6 +62,14 @@ describe("parseMinor", () => {
     assert.deepEqual(parseMinor("1.234", 2), { ok: false, error: "priceTooManyDecimals" });
     assert.deepEqual(parseMinor("100000000000", 3), { ok: false, error: "priceTooLarge" });
   });
+
+  it("accepts zero only when allowed", () => {
+    assert.deepEqual(parseMinor("0.00", 2, { allowZero: true }), { ok: true, minor: BigInt(0) });
+    assert.deepEqual(parseMinor("-0", 2, { allowZero: true }), {
+      ok: false,
+      error: "priceInvalid",
+    });
+  });
 });
 
 describe("parsePriceRow", () => {

@@ -17,6 +17,7 @@ import { requireAdmin } from "@/lib/auth/dal";
 import { isUuid } from "@/lib/catalogue/validation";
 import { getInventoryItem, listAdjustments, type AdjustmentRow } from "@/lib/inventory/queries";
 import { formatDateTime } from "@/lib/format";
+import { format } from "@/lib/i18n/messages";
 import { getLocale, getMessages } from "@/lib/i18n/server";
 import { getStoreRegion } from "@/lib/settings/queries";
 import { cn } from "@/lib/utils/cn";
@@ -72,7 +73,15 @@ async function InventoryItem({
   const configured = item.inventory_id !== null;
   const dateTime = (value: string) => formatDateTime(value, locale, undefined, timeZone);
   const signed = (value: number) => (value > 0 ? `+${value}` : String(value));
-  const admin = (row: AdjustmentRow) => row.admin?.full_name ?? h.unknownAdmin;
+  // Sales and cancellations (migration 043) link to their order instead.
+  const admin = (row: AdjustmentRow) =>
+    row.order_id && row.order ? (
+      <Link href={`/${locale}/admin/orders/${row.order_id}`} className="hover:underline">
+        {format(h.order, { number: row.order.order_number })}
+      </Link>
+    ) : (
+      (row.admin?.full_name ?? h.unknownAdmin)
+    );
 
   const stat = (label: string, value: number | null, className?: string) => (
     <div className="min-w-0 px-4 py-3">
@@ -128,7 +137,7 @@ async function InventoryItem({
             {t.manageVariants}
           </Link>
         )}
-        {configured && !hasVariants && (
+        {configured && (
           <AdjustStockDialog
             item={{
               productId: item.product_id,
@@ -137,6 +146,8 @@ async function InventoryItem({
               quantity: item.quantity ?? 0,
               reserved: item.reserved_quantity ?? 0,
               threshold: item.low_stock_threshold ?? 0,
+              // Product with variants: its stock is the pool they share.
+              allocated: hasVariants ? item.allocated_quantity : undefined,
             }}
           />
         )}
@@ -154,14 +165,24 @@ async function InventoryItem({
         <div className="grid gap-3">
           {/* Numbers + low-stock threshold in one strip */}
           <section className="grid overflow-hidden rounded-2xl border bg-card md:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)]">
-            <dl className="grid grid-cols-3 divide-x divide-border">
-              {stat(t.columns.stock, item.quantity)}
-              {stat(t.columns.reserved, item.reserved_quantity, "text-muted-foreground")}
-              {stat(t.columns.available, item.available_quantity, "text-primary")}
-            </dl>
+            {hasVariants ? (
+              <dl className="grid grid-cols-3 divide-x divide-border">
+                {stat(t.pool.total, item.quantity)}
+                {stat(t.pool.allocated, item.allocated_quantity, "text-muted-foreground")}
+                {stat(t.pool.unallocated, item.unallocated_quantity, "text-primary")}
+              </dl>
+            ) : (
+              <dl className="grid grid-cols-3 divide-x divide-border">
+                {stat(t.columns.stock, item.quantity)}
+                {stat(t.columns.reserved, item.reserved_quantity, "text-muted-foreground")}
+                {stat(t.columns.available, item.available_quantity, "text-primary")}
+              </dl>
+            )}
             <div className="border-t px-4 py-3 md:border-t-0 md:border-s">
               {hasVariants ? (
-                <p className="text-sm text-muted-foreground">{t.managedByVariants}</p>
+                <p className="text-sm text-muted-foreground">
+                  {format(t.pool.explainer, { total: (item.quantity ?? 0).toLocaleString(locale) })}
+                </p>
               ) : (
                 <ThresholdForm
                   compact

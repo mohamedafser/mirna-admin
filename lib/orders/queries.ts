@@ -57,6 +57,23 @@ export interface AddressSnapshot {
   };
 }
 
+/** The snapshot place_order() stores in orders.shipping_snapshot (migration 037). */
+export interface ShippingSnapshot {
+  method_code?: "STANDARD" | "EXPRESS";
+  rate_type?: string;
+  country_code?: string;
+  currency_code?: string;
+  /** Decimal strings in the order currency. */
+  base_amount?: string;
+  amount?: string;
+  free_shipping_threshold?: string | null;
+  free_shipping_applied?: boolean;
+  min_delivery_days?: number;
+  max_delivery_days?: number;
+  /** Migration 038: the parcel weight the order was quoted with. */
+  order_weight_grams?: number;
+}
+
 export interface OrderDetail {
   id: string;
   order_number: number;
@@ -72,6 +89,8 @@ export interface OrderDetail {
   user_id: string | null;
   shipping_address_snapshot: AddressSnapshot;
   billing_address_snapshot: AddressSnapshot | null;
+  /** null for orders placed before migration 037. */
+  shipping_snapshot: ShippingSnapshot | null;
   /** The account as it is now (null if it was deleted). */
   account: { full_name: string | null; phone: string | null; is_active: boolean } | null;
   items: {
@@ -194,7 +213,7 @@ export const getOrder = cache(async (id: string): Promise<OrderDetail | null> =>
     .select(
       `id, order_number, status, subtotal::text, discount::text, shipping::text, tax::text,
        total::text, currency_code, created_at, updated_at, user_id,
-       shipping_address_snapshot, billing_address_snapshot,
+       shipping_address_snapshot, billing_address_snapshot, shipping_snapshot,
        account:profiles(full_name, phone, is_active),
        items:order_items(id, product_id, product_name, sku, quantity, unit_price::text, total_price::text, created_at)`,
     )
