@@ -7,6 +7,8 @@ import { Suspense } from "react";
 import { Panel } from "@/components/catalogue/panel";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { StatusActions } from "@/components/orders/status-actions";
+import { deliveryDays } from "@/components/shipping/format";
+import { gramsToKg } from "@/lib/shipping/rules";
 import { Badge } from "@/components/ui/badge";
 import { buttonClassName } from "@/components/ui/button";
 import { PageSkeleton } from "@/components/ui/states";
@@ -78,6 +80,7 @@ async function OrderDetailView({ params }: Pick<PageProps<"/[lang]/admin/orders/
   const date = (value: string) => formatDateTime(value, locale, undefined, timeZone);
   const address: AddressSnapshot = order.shipping_address_snapshot ?? {};
   const customer = address.customer ?? {};
+  const delivery = order.shipping_snapshot;
   const ltr = (value: string | null | undefined) =>
     value ? (
       <span dir="ltr" className="inline-block">
@@ -252,6 +255,47 @@ async function OrderDetailView({ params }: Pick<PageProps<"/[lang]/admin/orders/
                   </span>
                 )}
               </address>
+              <div className="mt-3 border-t pt-3 text-sm">
+                <span className="block text-xs text-muted-foreground">{d.deliveryMethod}</span>
+                {delivery?.method_code ? (
+                  <>
+                    <span className="font-medium">
+                      {messages.shipping.methods[delivery.method_code]}
+                    </span>
+                    {delivery.min_delivery_days != null && delivery.max_delivery_days != null && (
+                      <span className="text-muted-foreground">
+                        {" · "}
+                        {deliveryDays(
+                          messages.shipping,
+                          delivery.min_delivery_days,
+                          delivery.max_delivery_days,
+                        )}
+                      </span>
+                    )}
+                    {delivery.rate_type === "WEIGHT_BASED" &&
+                      delivery.order_weight_grams != null && (
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          {format(d.rateBasis, {
+                            type: messages.shipping.rateTypes.WEIGHT_BASED,
+                            weight: gramsToKg(delivery.order_weight_grams),
+                          })}
+                        </span>
+                      )}
+                    {delivery.rate_type === "ORDER_BASED" && (
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        {messages.shipping.rateTypes.ORDER_BASED}
+                      </span>
+                    )}
+                    {delivery.free_shipping_applied && delivery.base_amount && (
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        {format(d.freeDelivery, { amount: money(delivery.base_amount) })}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">{d.noDeliveryMethod}</span>
+                )}
+              </div>
               {address.additional_instructions && (
                 <p className="mt-3 border-t pt-3 text-sm">
                   <span className="block text-xs text-muted-foreground">{d.instructions}</span>

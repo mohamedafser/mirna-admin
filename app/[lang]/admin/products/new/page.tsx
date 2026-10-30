@@ -17,6 +17,7 @@ import {
 } from "@/lib/catalogue/queries";
 import { getLocale, getMessages } from "@/lib/i18n/server";
 import { getStoreRegion } from "@/lib/settings/queries";
+import { hasProductWeights } from "@/lib/shipping/queries";
 
 export async function generateMetadata(): Promise<Metadata> {
   const messages = await getMessages();
@@ -35,7 +36,7 @@ export default async function NewProductPage() {
 async function NewProduct() {
   const [locale, messages] = await Promise.all([getLocale(), getMessages()]);
   await requireAdmin(locale);
-  const [categories, region, attributeCatalog, tags, priceCurrencies, suggestedSku] =
+  const [categories, region, attributeCatalog, tags, priceCurrencies, suggestedSku, weights] =
     await Promise.all([
       listCategoryOptions(),
       getStoreRegion(),
@@ -43,6 +44,7 @@ async function NewProduct() {
       listTagOptions(),
       listCurrencies(),
       getSuggestedProductSku(),
+      hasProductWeights(),
     ]);
   const p = messages.catalogue.products;
   const hasActiveCategory = categories.some((category) => category.isActive);
@@ -70,6 +72,7 @@ async function NewProduct() {
           attributeCatalog={attributeCatalog}
           tags={tags}
           suggestedSku={suggestedSku}
+          weightEnabled={weights}
         />
       ) : (
         <Card>

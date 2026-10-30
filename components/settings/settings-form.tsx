@@ -18,12 +18,13 @@ import {
   Undo2,
   type LucideIcon,
 } from "lucide-react";
+import Link from "next/link";
 import { useId, useMemo, useState, useTransition, type FormEvent, type ReactNode } from "react";
 import { CatalogueImage } from "@/components/catalogue/catalogue-image";
 import { ImageDropzone } from "@/components/catalogue/image-dropzone";
 import { useUnsavedChanges } from "@/components/catalogue/use-unsaved-changes";
 import { Alert } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Button, buttonClassName } from "@/components/ui/button";
 import { IconBadge } from "@/components/ui/card";
 import { Combobox } from "@/components/ui/combobox";
 import { Field, Input } from "@/components/ui/form";
@@ -664,38 +665,33 @@ function SettingsFields({
             />
           </Section>
 
-          <Section
-            id="shipping"
-            icon={Truck}
-            title={t.sections.shipping}
-            description={t.storedHint}
-          >
-            <div className="grid gap-4 sm:grid-cols-2">
-              {text(
-                "shippingFee",
-                format(f.shippingFee, { currency }),
-                money(settings.shipping_fee),
-                {
-                  inputMode: "decimal",
-                  dir: "ltr",
-                  placeholder: "0",
-                  hint: f.shippingFeeHint,
-                },
-              )}
-              {text(
-                "freeShippingThreshold",
-                format(f.freeShippingThreshold, { currency }),
-                money(settings.free_shipping_threshold),
-                { inputMode: "decimal", dir: "ltr", optional: true, hint: f.freeShippingHint },
-              )}
-              {text("deliveryMinDays", f.deliveryMinDays, String(settings.delivery_min_days), {
-                inputMode: "numeric",
-                dir: "ltr",
-              })}
-              {text("deliveryMaxDays", f.deliveryMaxDays, String(settings.delivery_max_days), {
-                inputMode: "numeric",
-                dir: "ltr",
-              })}
+          <Section id="shipping" icon={Truck} title={t.sections.shipping}>
+            {/* Shipping is configured per country (migration 037). The legacy
+                values are posted unchanged so saving Settings never alters them. */}
+            <input type="hidden" name="shippingFee" value={money(settings.shipping_fee)} />
+            <input
+              type="hidden"
+              name="freeShippingThreshold"
+              value={money(settings.free_shipping_threshold)}
+            />
+            <input
+              type="hidden"
+              name="deliveryMinDays"
+              value={String(settings.delivery_min_days)}
+            />
+            <input
+              type="hidden"
+              name="deliveryMaxDays"
+              value={String(settings.delivery_max_days)}
+            />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="min-w-0 flex-1 text-sm text-muted-foreground">{t.shippingMoved}</p>
+              <Link
+                href={`/${locale}/admin/shipping`}
+                className={buttonClassName({ variant: "outline", size: "sm" })}
+              >
+                {t.manageShipping}
+              </Link>
             </div>
           </Section>
 

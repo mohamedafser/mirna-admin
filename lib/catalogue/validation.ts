@@ -5,6 +5,7 @@
 import { parseWholeNumber } from "@/lib/inventory/rules";
 import { isCurrencyCode } from "@/lib/settings/rules";
 import { parseMoney, type MoneyError } from "@/lib/money";
+import { parseOptionalWeight, type WeightError } from "@/lib/shipping/rules";
 import { SLUG_MAX_LENGTH, SLUG_PATTERN } from "./slug";
 
 export const NAME_MAX_LENGTH = 200;
@@ -58,6 +59,7 @@ export type CatalogueFieldError =
   | "tagsInvalid"
   | "tagsInactive"
   | "tooManyTags"
+  | WeightError
   | MoneyError;
 
 export function isUuid(value: unknown): value is string {
@@ -184,6 +186,8 @@ export interface ProductInput {
   /** Extra categories (the main one, categoryId, is always included). */
   categoryIds: string[];
   tagIds: string[];
+  /** Weight in kg ("" = none); null when the form has no weight field (before migration 038). */
+  weight: string | null;
 }
 
 export type ProductFieldErrors = Partial<
@@ -206,6 +210,7 @@ export function readProduct(data: FormData): ProductInput {
     lowStockThreshold: text(data, "lowStockThreshold"),
     categoryIds: list(data, "categoryIds"),
     tagIds: list(data, "tagIds"),
+    weight: data.has("weight") ? text(data, "weight") : null,
   };
 }
 
@@ -250,6 +255,11 @@ export function validateProduct(
   if (!input.lowStockThreshold) errors.lowStockThreshold = "thresholdRequired";
   else if (parseWholeNumber(input.lowStockThreshold) === null) {
     errors.lowStockThreshold = "thresholdInvalid";
+  }
+
+  if (input.weight != null) {
+    const weight = parseOptionalWeight(input.weight);
+    if (!weight.ok) errors.weight = weight.error;
   }
 
   if (!isCurrencyCode(input.currencyCode)) {

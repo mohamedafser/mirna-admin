@@ -36,6 +36,9 @@ export function Breadcrumbs() {
     if (section === "inventory") return messages.inventory.history.title;
     if (section === "orders") return messages.orders.detailCrumb;
     if (section === "customers") return messages.customers.detail.title;
+    if (section === "shipping" && /^[A-Z]{2}$/.test(segment)) {
+      return new Intl.DisplayNames([locale], { type: "region" }).of(segment) ?? segment;
+    }
     return decodeURIComponent(segment);
   }
   const crumbs = [

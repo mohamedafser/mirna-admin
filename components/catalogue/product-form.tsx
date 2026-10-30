@@ -3,11 +3,15 @@
 import { History, LoaderCircle, Save } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useId, useState, useTransition, type FormEvent, type ReactNode } from "react";
+import { useId, useRef, useState, useTransition, type FormEvent, type ReactNode } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button, buttonClassName } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { Field, Input, Textarea } from "@/components/ui/form";
+import { AdjustStockButton, AdjustStockModal } from "@/components/inventory/adjust-stock-dialog";
+import { ShareStockDialog } from "@/components/inventory/share-stock-dialog";
+import { findUnallocatedStock } from "@/lib/inventory/actions";
+import type { StockAllocation } from "@/lib/inventory/queries";
 import { StockStatusBadge } from "@/components/inventory/stock-status-badge";
 import { useToast } from "@/components/ui/toast";
 import {
@@ -42,6 +46,7 @@ import { format } from "@/lib/i18n/messages";
 import { useI18n } from "@/lib/i18n/client";
 import { parseWholeNumber, stockStatus } from "@/lib/inventory/rules";
 import { currencyFractionDigits, moneyInputValue } from "@/lib/money";
+import { gramsToKg } from "@/lib/shipping/rules";
 import { ImageDropzone } from "./image-dropzone";
 import { ImageGallery } from "./image-gallery";
 import { Panel } from "./panel";
@@ -70,6 +75,8 @@ export interface EditableProduct {
     reserved: number;
     threshold: number;
     updatedAt: string;
+    /** Product with variants: units its variants hold (the rest is unallocated). */
+    allocated?: number;
   } | null;
   /** Product type + attribute values (null: attribute tables not set up yet). */
   attributes: SavedProductAttributes | null;
@@ -77,6 +84,8 @@ export interface EditableProduct {
   variantCount: number;
   /** Category (main included) and tag ids (null: tag tables not set up yet). */
   taxonomy: ProductTaxonomy | null;
+  /** Shipping weight in grams (null: none). */
+  weight_grams?: number | null;
 }
 
 /** Product and stock are versioned separately; either change reloads the form. */
@@ -113,6 +122,8 @@ interface ProductFormProps {
   aside?: ReactNode;
   /** New product: the next generated SKU, filled in as the default. */
   suggestedSku?: string | null;
+  /** Products have a shipping weight (migration 038): show the field. */
+  weightEnabled?: boolean;
 }
 
 const initialState: ProductFormResult = { status: "idle", fieldErrors: {}, at: 0 };
@@ -173,6 +184,7 @@ function ProductFormFields({
   tags,
   aside,
   suggestedSku = null,
+  weightEnabled = false,
   dirty,
   setDirty,
 }: ProductFormProps & { dirty: boolean; setDirty: (dirty: boolean) => void }) {
@@ -214,6 +226,18 @@ function ProductFormFields({
   const reserved = product?.inventory?.reserved ?? 0;
   const [stock, setStock] = useState(String(loadedStock));
   const [threshold, setThreshold] = useState(String(product?.inventory?.threshold ?? 0));
+  const [adjusting, setAdjusting] = useState(false);
+  const [sharing, setSharing] = useState<StockAllocation | null>(null);
+  // The share modal can close more than once (button, then the dialog's own
+  // close event): continue to the list only once.
+  const leaving = useRef(false);
+  const leaveToList = () => {
+    if (leaving.current) return;
+    leaving.current = true;
+    setSharing(null);
+    router.push(`/${locale}/admin/products`);
+  };
+  const [adjustSession, setAdjustSession] = useState(0);
   const [mainCategoryId, setMainCategoryId] = useState(product?.category_id ?? "");
   // After a save attempt the price table also flags rows not edited yet.
   const [pricesChecked, setPricesChecked] = useState(false);
@@ -366,6 +390,14 @@ function ProductFormFields({
         setDirty(false);
         if (result.warning) toast.warning(t.errors[result.warning]);
         else toast.success(t.products.updated);
+        // Part of the stock pool not given to any variant yet: offer to share
+        // it out before leaving (the modal continues to the list).
+        const allocation = product ? await findUnallocatedStock(product.id) : null;
+        if (allocation) {
+          leaving.current = false;
+          setSharing(allocation);
+          return;
+        }
         // Back to the list (the toast lives in the admin layout, so it stays visible).
         router.push(`/${locale}/admin/products`);
       }
@@ -385,6 +417,23 @@ function ProductFormFields({
       : product
         ? t.common.saveChanges
         : t.products.add;
+
+  // Existing stock changes through the Adjust dialog (reason + history).
+  const stockItem = product?.inventory
+    ? {
+        productId: product.id,
+        name: product.name,
+        sku: product.sku,
+        quantity: product.inventory.quantity,
+        reserved: product.inventory.reserved,
+        threshold: product.inventory.threshold,
+        allocated: product.inventory.allocated,
+      }
+    : null;
+  const openAdjust = () => {
+    setAdjustSession((value) => value + 1);
+    setAdjusting(true);
+  };
 
   return (
     <div className="grid gap-4">
@@ -609,9 +658,44 @@ function ProductFormFields({
                 <input type="hidden" name="stock" value={loadedStock} readOnly />
                 <input type="hidden" name="lowStockThreshold" value={threshold} readOnly />
                 <div className="flex flex-wrap items-center gap-3 rounded-xl bg-muted/50 px-3.5 py-3 text-sm">
-                  <p className="min-w-0 flex-1 text-muted-foreground">
-                    {format(f.stockByVariants, { count: product.variantCount })}
-                  </p>
+                  <div className="min-w-0 flex-1">
+                    <p className="flex flex-wrap gap-x-5 gap-y-1">
+                      <span>
+                        <span className="block text-xs text-muted-foreground">
+                          {t.products.pool.total}
+                        </span>
+                        <span className="text-lg font-semibold tabular-nums">
+                          {Number(loadedStock).toLocaleString(locale)}
+                        </span>
+                      </span>
+                      {product.inventory?.allocated !== undefined && (
+                        <>
+                          <span>
+                            <span className="block text-xs text-muted-foreground">
+                              {t.products.pool.allocated}
+                            </span>
+                            <span className="text-lg font-semibold tabular-nums">
+                              {product.inventory.allocated.toLocaleString(locale)}
+                            </span>
+                          </span>
+                          <span>
+                            <span className="block text-xs text-muted-foreground">
+                              {t.products.pool.unallocated}
+                            </span>
+                            <span className="text-lg font-semibold tabular-nums">
+                              {(
+                                product.inventory.quantity - product.inventory.allocated
+                              ).toLocaleString(locale)}
+                            </span>
+                          </span>
+                        </>
+                      )}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {format(f.stockByVariants, { count: product.variantCount })}
+                    </p>
+                  </div>
+                  {stockItem && <AdjustStockButton item={stockItem} onClick={openAdjust} />}
                   <Link
                     href={`/${locale}/admin/products/${product.id}/variants`}
                     className={buttonClassName({ variant: "outline", size: "sm" })}
@@ -623,33 +707,58 @@ function ProductFormFields({
             ) : (
               <>
                 <input type="hidden" name="expectedStock" value={loadedStock} readOnly />
+                {product?.inventory && (
+                  // Existing stock changes only through an adjustment with a reason
+                  // (recorded in stock history), never by overwriting the number here.
+                  <>
+                    <input type="hidden" name="stock" value={loadedStock} readOnly />
+                    <div className="flex flex-wrap items-center gap-3 rounded-xl bg-muted/50 px-3.5 py-3 text-sm">
+                      <p className="min-w-0 flex-1">
+                        <span className="block text-xs text-muted-foreground">
+                          {f.stockCurrent}
+                        </span>
+                        <span className="text-lg font-semibold tabular-nums">
+                          {Number(loadedStock).toLocaleString(locale)}
+                        </span>
+                        {reserved > 0 && (
+                          <span className="ms-2 text-xs text-muted-foreground">
+                            {format(f.stockHintReserved, { reserved })}
+                          </span>
+                        )}
+                      </p>
+                      {stockItem && <AdjustStockButton item={stockItem} onClick={openAdjust} />}
+                    </div>
+                  </>
+                )}
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <Field
-                    id={`${id}-stock`}
-                    label={f.stock}
-                    hint={
-                      product
-                        ? reserved > 0
-                          ? format(f.stockHintReserved, { reserved })
-                          : f.stockHintEdit
-                        : f.stockHintNew
-                    }
-                    error={errorText(fieldErrors.stock)}
-                  >
-                    {(a11y) => (
-                      <Input
-                        {...a11y}
-                        name="stock"
-                        inputMode="numeric"
-                        dir="ltr"
-                        required
-                        autoComplete="off"
-                        disabled={pending}
-                        value={stock}
-                        onChange={(event) => setStock(event.target.value)}
-                      />
-                    )}
-                  </Field>
+                  {!product?.inventory && (
+                    <Field
+                      id={`${id}-stock`}
+                      label={f.stock}
+                      hint={
+                        product
+                          ? reserved > 0
+                            ? format(f.stockHintReserved, { reserved })
+                            : f.stockHintEdit
+                          : f.stockHintNew
+                      }
+                      error={errorText(fieldErrors.stock)}
+                    >
+                      {(a11y) => (
+                        <Input
+                          {...a11y}
+                          name="stock"
+                          inputMode="numeric"
+                          dir="ltr"
+                          required
+                          autoComplete="off"
+                          disabled={pending}
+                          value={stock}
+                          onChange={(event) => setStock(event.target.value)}
+                        />
+                      )}
+                    </Field>
+                  )}
                   <Field
                     id={`${id}-threshold`}
                     label={f.lowStockThreshold}
@@ -681,6 +790,31 @@ function ProductFormFields({
               </>
             )}
           </Section>
+
+          {weightEnabled && (
+            <Section title={t.products.sections.shipping}>
+              <Field
+                id={`${id}-weight`}
+                label={f.weight}
+                optional={t.common.optional}
+                hint={f.weightHint}
+                error={errorText(fieldErrors.weight)}
+                className="sm:max-w-[calc(50%-0.5rem)]"
+              >
+                {(a11y) => (
+                  <Input
+                    {...a11y}
+                    name="weight"
+                    inputMode="decimal"
+                    dir="ltr"
+                    autoComplete="off"
+                    disabled={pending}
+                    defaultValue={product?.weight_grams ? gramsToKg(product.weight_grams) : ""}
+                  />
+                )}
+              </Field>
+            </Section>
+          )}
 
           <Section title={t.products.sections.description}>
             <Field
@@ -720,6 +854,17 @@ function ProductFormFields({
             </Field>
           </Section>
         </form>
+
+        {/* Outside the product <form>: these dialogs have their own forms. */}
+        <ShareStockDialog allocation={sharing} onClose={leaveToList} />
+        {stockItem && (
+          <AdjustStockModal
+            key={adjustSession}
+            item={stockItem}
+            open={adjusting}
+            onOpenChange={setAdjusting}
+          />
+        )}
 
         {/* Side column: sticky on large screens so photos stay in view. */}
         <div className="grid gap-4 lg:sticky lg:top-20">
@@ -790,7 +935,14 @@ function ProductFormFields({
         >
           {t.common.cancel}
         </Link>
-        <Button type="submit" form={formId} disabled={pending} aria-busy={pending}>
+        <Button
+          type="submit"
+          form={formId}
+          // Nothing edited yet: nothing to save.
+          disabled={pending || !dirty}
+          title={!dirty && !pending ? t.common.noChanges : undefined}
+          aria-busy={pending}
+        >
           {pending ? <LoaderCircle aria-hidden className="animate-spin" /> : <Save aria-hidden />}
           {saveLabel}
         </Button>

@@ -19,6 +19,7 @@ import {
 } from "@/lib/currency/product-prices";
 import { parseWholeNumber } from "@/lib/inventory/rules";
 import { parseMoney } from "@/lib/money";
+import { parseOptionalWeight } from "@/lib/shipping/rules";
 import type { Database, Json } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -455,8 +456,7 @@ export async function setCategoryActive(id: string, active: boolean): Promise<Ac
 // ---------------------------------------------------------------------------
 
 export type BulkStatusResult =
-  | { ok: true; updated: number }
-  | { ok: false; error: CatalogueFormError };
+  { ok: true; updated: number } | { ok: false; error: CatalogueFormError };
 
 /** Products per bulk change: one list page at most (plus headroom). */
 const MAX_BULK = 100;
@@ -466,10 +466,7 @@ const MAX_BULK = 100;
  * bulk actions). Only products whose status actually changes are updated;
  * `updated` is how many did.
  */
-export async function setProductsActive(
-  ids: string[],
-  active: boolean,
-): Promise<BulkStatusResult> {
+export async function setProductsActive(ids: string[], active: boolean): Promise<BulkStatusResult> {
   if (!(await getAdminOrNull())) return { ok: false, error: "forbidden" };
   if (
     !Array.isArray(ids) ||
@@ -592,6 +589,8 @@ export async function saveProduct(
   const compareAt = input.compareAtPrice
     ? parseMoney(input.compareAtPrice, input.currencyCode)
     : null;
+  // null / undefined: the form has no weight field, so the weight is left as is.
+  const weight = input.weight == null ? null : parseOptionalWeight(input.weight);
   const values = {
     name: input.name,
     slug: input.slug,
@@ -602,11 +601,16 @@ export async function saveProduct(
     price: (price.ok ? price.value : "0") as unknown as number,
     compare_at_price: (compareAt?.ok ? compareAt.value : null) as unknown as number | null,
     currency_code: input.currencyCode,
+    // Only when the form has the field (migration 038); "" clears it.
+    ...(weight?.ok ? { weight_grams: weight.grams } : {}),
   };
 
   if (id) {
     // Status is changed with the Activate/Deactivate action, not this form,
     // so saving edits never flips it back.
+    // The product's own prices before this save: variants still on them
+    // follow the change below.
+    const pricesBefore = await readProductLevelPrices(supabase, id);
     const { data: updated, error } = await supabase
       .from("products")
       .update(values)
@@ -627,6 +631,8 @@ export async function saveProduct(
       taxonomy ? await saveProductAssignments(supabase, id, input) : undefined,
       await saveProductPrices(supabase, id, otherPrices),
     ];
+    // After every price is saved (its own currency through the product row).
+    warnings.push(await followProductPrices(supabase, id, pricesBefore));
     const warning = warnings.find(Boolean);
     refresh();
     return { status: "success", fieldErrors: {}, id, mode: "updated", warning, at: Date.now() };
@@ -676,6 +682,66 @@ export async function saveProduct(
     warning,
     at: Date.now(),
   };
+}
+
+type LevelPrices = Map<string, { price: number; salePrice: number | null }>;
+
+/** A product's own prices (minor units) by currency; null if they can't be read. */
+async function readProductLevelPrices(
+  supabase: Supabase,
+  productId: string,
+): Promise<LevelPrices | null> {
+  const { data, error } = await supabase
+    .from("product_prices")
+    .select("currency_code, price, sale_price")
+    .eq("product_id", productId)
+    .is("variant_id", null);
+  if (error) {
+    // Before migration 031 there are no per-currency prices to follow.
+    if (!["42P01", "PGRST205"].includes(error.code ?? "")) log("read prices", error);
+    return null;
+  }
+  return new Map(
+    data.map((row) => [row.currency_code, { price: row.price, salePrice: row.sale_price }]),
+  );
+}
+
+/**
+ * Variants created from a product start with its price (and sale price) and
+ * keep their own copy. When the product's price changes, variants that still
+ * have exactly its previous price in that currency (never priced on their
+ * own) take the new one, so removing or changing the product's sale price
+ * also applies to them. Variants priced individually keep their price.
+ * Mirrored to the variants' legacy columns by the database triggers (031).
+ */
+async function followProductPrices(
+  supabase: Supabase,
+  productId: string,
+  before: LevelPrices | null,
+): Promise<CatalogueWarning | undefined> {
+  if (!before || before.size === 0) return undefined;
+  const after = await readProductLevelPrices(supabase, productId);
+  if (!after) return "pricesNotSaved";
+  for (const [currency, old] of before) {
+    const now = after.get(currency);
+    // Unchanged, or the currency was removed from the product: nothing to follow.
+    if (!now || (now.price === old.price && now.salePrice === old.salePrice)) continue;
+    let query = supabase
+      .from("product_prices")
+      .update({ price: now.price, sale_price: now.salePrice })
+      .eq("product_id", productId)
+      .not("variant_id", "is", null)
+      .eq("currency_code", currency)
+      .eq("price", old.price);
+    query =
+      old.salePrice === null ? query.is("sale_price", null) : query.eq("sale_price", old.salePrice);
+    const { error } = await query;
+    if (error) {
+      log("follow variant prices", error);
+      return "pricesNotSaved";
+    }
+  }
+  return undefined;
 }
 
 /**

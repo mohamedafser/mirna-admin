@@ -5,6 +5,7 @@ import {
   History,
   Layers,
   Package,
+  PackagePlus,
   SearchX,
   TriangleAlert,
   type LucideIcon,
@@ -71,6 +72,8 @@ function adjustable(row: InventoryRow): AdjustableItem | null {
     quantity: row.quantity ?? 0,
     reserved: row.reserved_quantity ?? 0,
     threshold: row.low_stock_threshold ?? 0,
+    // Product with variants: its stock is the pool they share (migration 042).
+    allocated: row.variant_count > 0 ? row.allocated_quantity : undefined,
   };
 }
 
@@ -263,17 +266,15 @@ async function Inventory({
     if (!item) return <InitializeButton productId={row.product_id} label={t.initialize} />;
     return (
       <>
-        {row.variant_count > 0 ? (
-          // Stock of a product with variants is their total: adjust per variant.
+        <AdjustStockDialog compact item={item} />
+        {row.variant_count > 0 &&
+          // The pool is shared out per variant on the variants page.
           iconLink(
             variantsHref(row),
             `${t.manageVariants}: ${row.name}`,
             t.manageVariants,
             <Layers aria-hidden />,
-          )
-        ) : (
-          <AdjustStockDialog compact item={item} />
-        )}
+          )}
         {iconLink(
           historyHref(row),
           format(t.history.linkNamed, { name: row.name }),
@@ -297,6 +298,7 @@ async function Inventory({
             quantity: variant.quantity ?? 0,
             reserved: variant.reserved_quantity ?? 0,
             threshold: variant.low_stock_threshold ?? 0,
+            poolAvailable: row.unallocated_quantity ?? undefined,
           }}
         />
       )}
@@ -371,6 +373,15 @@ async function Inventory({
           {!row.product_active && <Badge className="py-0">{t.productInactive}</Badge>}
           {variantBadges(row)}
         </span>
+        {row.variant_count > 0 && row.unallocated_quantity !== null && (
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {format(t.pool.line, {
+              allocated: number(row.allocated_quantity),
+              total: number(row.quantity),
+              unallocated: number(row.unallocated_quantity),
+            })}
+          </span>
+        )}
       </span>
     </div>
   );
@@ -586,14 +597,27 @@ async function Inventory({
           <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{t.title}</h1>
           <p className="mt-0.5 hidden text-sm text-muted-foreground sm:block">{t.subtitle}</p>
         </div>
-        {summary.unconfigured > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">
-              {format(t.initializeAllBody, { count: summary.unconfigured })}
-            </span>
-            <InitializeButton label={t.initializeAll} />
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {summary.unconfigured > 0 && (
+            <>
+              <span className="text-xs text-muted-foreground">
+                {format(t.initializeAllBody, { count: summary.unconfigured })}
+              </span>
+              <InitializeButton label={t.initializeAll} />
+            </>
+          )}
+          <Link
+            href={`/${locale}/admin/stock-movements`}
+            className={buttonClassName({ variant: "outline", size: "sm" })}
+          >
+            <History aria-hidden />
+            {messages.nav.stockMovements}
+          </Link>
+          <Link href={`/${locale}/admin/stock-update`} className={buttonClassName({ size: "sm" })}>
+            <PackagePlus aria-hidden />
+            {messages.nav.stockUpdate}
+          </Link>
+        </div>
       </div>
 
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">

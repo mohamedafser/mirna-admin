@@ -3,14 +3,17 @@ import {
   Coins,
   FolderTree,
   GalleryHorizontalEnd,
+  History,
   LayoutDashboard,
   Package,
+  PackagePlus,
   Settings,
   Shapes,
   ShieldCheck,
   ShoppingCart,
   SlidersHorizontal,
   Tags,
+  Truck,
   UserRound,
   Users,
   type LucideIcon,
@@ -32,11 +35,14 @@ export type AdminSectionKey =
   | "productTypes"
   | "attributes"
   | "inventory"
+  | "stockUpdate"
+  | "stockMovements"
   | "orders"
   | "customers"
   | "admins"
   | "banner"
   | "currencies"
+  | "shipping"
   | "settings"
   | "profile";
 
@@ -49,27 +55,12 @@ export interface AdminSection {
   inNav: boolean;
   available: boolean;
   /** Sidebar group heading (label: messages.nav.groups[group]). */
-  group?: "catalogue" | "inventory";
+  group?: "catalogue" | "inventory" | "sales" | "store" | "admin";
 }
 
 export const adminSections: readonly AdminSection[] = [
   { key: "dashboard", segment: "", icon: LayoutDashboard, inNav: true, available: true },
-  {
-    key: "categories",
-    segment: "categories",
-    icon: FolderTree,
-    inNav: true,
-    available: true,
-    group: "catalogue",
-  },
-  {
-    key: "tags",
-    segment: "tags",
-    icon: Tags,
-    inNav: true,
-    available: true,
-    group: "catalogue",
-  },
+  // Catalogue
   {
     key: "products",
     segment: "products",
@@ -78,6 +69,15 @@ export const adminSections: readonly AdminSection[] = [
     available: true,
     group: "catalogue",
   },
+  {
+    key: "categories",
+    segment: "categories",
+    icon: FolderTree,
+    inNav: true,
+    available: true,
+    group: "catalogue",
+  },
+  { key: "tags", segment: "tags", icon: Tags, inNav: true, available: true, group: "catalogue" },
   {
     key: "productTypes",
     segment: "product-types",
@@ -94,6 +94,7 @@ export const adminSections: readonly AdminSection[] = [
     available: true,
     group: "catalogue",
   },
+  // Inventory
   {
     key: "inventory",
     segment: "inventory",
@@ -102,12 +103,81 @@ export const adminSections: readonly AdminSection[] = [
     available: true,
     group: "inventory",
   },
-  { key: "orders", segment: "orders", icon: ShoppingCart, inNav: true, available: true },
-  { key: "customers", segment: "customers", icon: Users, inNav: true, available: true },
-  { key: "admins", segment: "admins", icon: ShieldCheck, inNav: true, available: true },
-  { key: "banner", segment: "banner", icon: GalleryHorizontalEnd, inNav: true, available: true },
-  { key: "currencies", segment: "currencies", icon: Coins, inNav: true, available: true },
-  { key: "settings", segment: "settings", icon: Settings, inNav: true, available: true },
+  {
+    key: "stockUpdate",
+    segment: "stock-update",
+    icon: PackagePlus,
+    inNav: true,
+    available: true,
+    group: "inventory",
+  },
+  {
+    key: "stockMovements",
+    segment: "stock-movements",
+    icon: History,
+    inNav: true,
+    available: true,
+    group: "inventory",
+  },
+  // Sales
+  {
+    key: "orders",
+    segment: "orders",
+    icon: ShoppingCart,
+    inNav: true,
+    available: true,
+    group: "sales",
+  },
+  {
+    key: "customers",
+    segment: "customers",
+    icon: Users,
+    inNav: true,
+    available: true,
+    group: "sales",
+  },
+  // Store setup
+  {
+    key: "banner",
+    segment: "banner",
+    icon: GalleryHorizontalEnd,
+    inNav: true,
+    available: true,
+    group: "store",
+  },
+  {
+    key: "currencies",
+    segment: "currencies",
+    icon: Coins,
+    inNav: true,
+    available: true,
+    group: "store",
+  },
+  {
+    key: "shipping",
+    segment: "shipping",
+    icon: Truck,
+    inNav: true,
+    available: true,
+    group: "store",
+  },
+  // Administration
+  {
+    key: "admins",
+    segment: "admins",
+    icon: ShieldCheck,
+    inNav: true,
+    available: true,
+    group: "admin",
+  },
+  {
+    key: "settings",
+    segment: "settings",
+    icon: Settings,
+    inNav: true,
+    available: true,
+    group: "admin",
+  },
   { key: "profile", segment: "profile", icon: UserRound, inNav: false, available: true },
 ];
 

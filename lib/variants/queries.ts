@@ -221,3 +221,22 @@ export const getVariantCount = cache(async (productId: string): Promise<number> 
   }
   return count ?? 0;
 });
+
+/**
+ * Each variant's own shipping weight in grams (null: uses the product's), by
+ * variant id. null before migration 038 (the editor then hides the field).
+ */
+export async function getVariantWeights(
+  productId: string,
+): Promise<Map<string, number | null> | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("product_variants")
+    .select("id, weight_grams")
+    .eq("product_id", productId);
+  if (error) {
+    if (isMissingSchema(error)) return null;
+    fail("variant weights", error);
+  }
+  return new Map(data.map((row) => [row.id, row.weight_grams]));
+}

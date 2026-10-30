@@ -20,9 +20,10 @@ const DISPLAY_LIMIT = 1000;
 /**
  * Shows every combination of the product's variant options, marks the ones
  * that already exist, and creates the selected new ones. Existing variants
- * are never modified ("regenerate" only ever adds). When a product gets its
- * first variants while it has stock, the admin picks which new variant
- * receives those units (moved and recorded in one database transaction).
+ * are never modified ("regenerate" only ever adds). The product's stock is
+ * the pool its variants share (migration 042): new variants start with 0,
+ * and when a product with stock gets its first variants the admin may give
+ * the whole pool to one of them; otherwise it's shared out later.
  */
 export function VariantGenerator({
   productId,
@@ -33,7 +34,7 @@ export function VariantGenerator({
   productId: string;
   axes: VariantAxis[];
   existingKeys: string[];
-  /** Product-level units to move (first variants only); 0 when none. */
+  /** The product's stock pool (first variants only); 0 when none. */
   stockToMove: number;
 }) {
   const { locale, messages } = useI18n();
@@ -64,10 +65,6 @@ export function VariantGenerator({
 
   function submit() {
     if (pending || chosen.length === 0) return;
-    if (needsTarget && !selected.includes(target)) {
-      setError("stockTargetRequired");
-      return;
-    }
     setError(null);
     startTransition(async () => {
       try {
@@ -222,10 +219,13 @@ export function VariantGenerator({
                 setTarget(key);
                 setError(null);
               }}
-              options={chosen.map((combination) => ({
-                value: combination.key,
-                label: combination.label,
-              }))}
+              options={[
+                { value: "", label: g.stockTargetNone },
+                ...chosen.map((combination) => ({
+                  value: combination.key,
+                  label: combination.label,
+                })),
+              ]}
               className="sm:max-w-sm"
             />
           )}

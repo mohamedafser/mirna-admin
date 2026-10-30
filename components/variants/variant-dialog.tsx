@@ -12,6 +12,7 @@ import { useUnsavedChanges } from "@/components/catalogue/use-unsaved-changes";
 import { format } from "@/lib/i18n/messages";
 import { useI18n } from "@/lib/i18n/client";
 import { currencyFractionDigits, moneyInputValue } from "@/lib/money";
+import { gramsToKg } from "@/lib/shipping/rules";
 import { cn } from "@/lib/utils/cn";
 import { saveVariant, type VariantFormResult } from "@/lib/variants/actions";
 import {
@@ -31,6 +32,8 @@ export interface EditableVariant {
   image_id: string | null;
   is_active: boolean;
   updated_at: string;
+  /** Own shipping weight in grams (null: the product's); undefined before migration 038. */
+  weight_grams?: number | null;
 }
 
 export interface VariantImage {
@@ -228,6 +231,26 @@ function VariantForm({
           </Field>
         </div>
         <p className="-mt-2 text-xs text-muted-foreground">{t.compareAtHint}</p>
+        {variant.weight_grams !== undefined && (
+          <Field
+            id={`${id}-weight`}
+            label={t.weight}
+            optional={messages.catalogue.common.optional}
+            hint={t.weightHint}
+            error={errorText(fieldErrors.weight)}
+          >
+            {(a11y) => (
+              <Input
+                {...a11y}
+                name="weight"
+                inputMode="decimal"
+                dir="ltr"
+                autoComplete="off"
+                defaultValue={variant.weight_grams ? gramsToKg(variant.weight_grams) : ""}
+              />
+            )}
+          </Field>
+        )}
       </fieldset>
 
       <fieldset className="grid gap-2" disabled={pending}>

@@ -6,6 +6,7 @@ import { getAdminOrNull } from "@/lib/auth/dal";
 import type { ActionResult, CatalogueFormError } from "@/lib/catalogue/actions";
 import { isUuid } from "@/lib/catalogue/validation";
 import { parseMoney } from "@/lib/money";
+import { parseOptionalWeight } from "@/lib/shipping/rules";
 import { isCurrencyCode } from "@/lib/settings/rules";
 import { createClient } from "@/lib/supabase/server";
 import { loadVariantAxes } from "./queries";
@@ -144,7 +145,7 @@ export async function generateVariants(
   return { ok: true, count: data };
 }
 
-/** Edits one variant's SKU, price, compare-at price, image and status. */
+/** Edits one variant's SKU, price, compare-at price, image, weight and status. */
 export async function saveVariant(
   _prev: VariantFormResult,
   data: FormData,
@@ -179,6 +180,7 @@ export async function saveVariant(
   }
   const price = parseMoney(input.price, currency);
   const compareAt = input.compareAtPrice ? parseMoney(input.compareAtPrice, currency) : null;
+  const weight = input.weight == null ? null : parseOptionalWeight(input.weight);
 
   const { data: updated, error } = await supabase
     .from("product_variants")
@@ -189,6 +191,8 @@ export async function saveVariant(
       compare_at_price: (compareAt?.ok ? compareAt.value : null) as unknown as number | null,
       image_id: input.imageId || null,
       is_active: input.isActive,
+      // Only when the form has the field (migration 038); "" = the product's weight.
+      ...(weight?.ok ? { weight_grams: weight.grams } : {}),
     })
     .eq("id", id)
     .eq("updated_at", version)

@@ -45,6 +45,10 @@ export interface AdjustableItem {
   quantity: number;
   reserved: number;
   threshold: number;
+  /** Product with variants (its stock pool): units its variants hold. */
+  allocated?: number;
+  /** Variant: units still unallocated in its product's pool. */
+  poolAvailable?: number;
 }
 
 const typeIcons = { increase: Plus, decrease: Minus, set: PencilLine } as const;
@@ -61,43 +65,84 @@ export function AdjustStockDialog({
   /** Icon-only trigger (tables, phone rows). */
   compact?: boolean;
 }) {
-  const { messages } = useI18n();
-  const t = messages.inventory.adjust;
   const [open, setOpen] = useState(false);
   // Remount the form on every open so it starts from the latest stock values.
   const [session, setSession] = useState(0);
 
   return (
     <>
-      <Button
-        variant={compact ? "outline" : "primary"}
-        size={compact ? "icon-sm" : "md"}
-        aria-label={format(t.buttonNamed, { name: item.name })}
-        title={compact ? t.button : undefined}
+      <AdjustStockButton
+        item={item}
+        compact={compact}
         onClick={() => {
           setSession((value) => value + 1);
           setOpen(true);
         }}
-      >
-        <SlidersHorizontal aria-hidden />
-        {!compact && <span aria-hidden>{t.button}</span>}
-      </Button>
-      <Dialog
-        open={open}
-        onOpenChange={setOpen}
-        title={t.title}
-        description={
-          <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <bdi className="truncate font-medium text-foreground">{item.name}</bdi>
-            <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-xs" dir="ltr">
-              {item.sku}
-            </span>
-          </span>
-        }
-      >
-        <AdjustForm key={session} item={item} onDone={() => setOpen(false)} />
-      </Dialog>
+      />
+      <AdjustStockModal key={session} item={item} open={open} onOpenChange={setOpen} />
     </>
+  );
+}
+
+/** The "Adjust" trigger on its own (see AdjustStockModal). */
+export function AdjustStockButton({
+  item,
+  compact = false,
+  onClick,
+}: {
+  item: AdjustableItem;
+  compact?: boolean;
+  onClick: () => void;
+}) {
+  const { messages } = useI18n();
+  const t = messages.inventory.adjust;
+  return (
+    <Button
+      variant={compact ? "outline" : "primary"}
+      size={compact ? "icon-sm" : "md"}
+      aria-label={format(t.buttonNamed, { name: item.name })}
+      title={compact ? t.button : undefined}
+      onClick={onClick}
+    >
+      <SlidersHorizontal aria-hidden />
+      {!compact && <span aria-hidden>{t.button}</span>}
+    </Button>
+  );
+}
+
+/**
+ * The adjustment dialog on its own, for a trigger that sits inside another
+ * <form> (the product form): render this OUTSIDE that form. Nested forms are
+ * invalid HTML, and React would bubble this form's submit to the outer one.
+ * Give it a new `key` per opening so it starts from the latest stock values.
+ */
+export function AdjustStockModal({
+  item,
+  open,
+  onOpenChange,
+}: {
+  item: AdjustableItem;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { messages } = useI18n();
+  const t = messages.inventory.adjust;
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={t.title}
+      description={
+        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <bdi className="truncate font-medium text-foreground">{item.name}</bdi>
+          <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-xs" dir="ltr">
+            {item.sku}
+          </span>
+        </span>
+      }
+    >
+      <AdjustForm item={item} onDone={() => onOpenChange(false)} />
+    </Dialog>
   );
 }
 
@@ -113,8 +158,27 @@ function AdjustForm({ item, onDone }: { item: AdjustableItem; onDone: () => void
   const [pending, startTransition] = useTransition();
   const id = useId();
 
-  const current = { quantity: item.quantity, reserved: item.reserved };
+  // Stock-pool limits (migration 042), checked live; the database is final.
+  const current = {
+    quantity: item.quantity,
+    reserved: item.reserved,
+    min: item.allocated,
+    max: item.poolAvailable === undefined ? undefined : item.quantity + item.poolAvailable,
+  };
   const amount = parseWholeNumber(quantity);
+  // The largest valid entry for this type: what can be added (within the
+  // pool for a variant), removed (down to reserved / allocated units) or set.
+  const floor = Math.max(item.reserved, item.allocated ?? 0);
+  const ceiling = current.max ?? QUANTITY_MAX;
+  const maxAmount = Math.max(
+    0,
+    type === "increase"
+      ? ceiling - item.quantity
+      : type === "decrease"
+        ? item.quantity - floor
+        : ceiling,
+  );
+  const atMax = (amount ?? 0) >= maxAmount;
   const preview = amount === null ? null : previewAdjustment(type, amount, current);
   const next = preview?.ok ? preview.newQuantity : null;
 
@@ -142,7 +206,7 @@ function AdjustForm({ item, onDone }: { item: AdjustableItem; onDone: () => void
 
   function step(delta: number) {
     const base = amount ?? 0;
-    setQuantity(String(Math.min(QUANTITY_MAX, Math.max(0, base + delta))));
+    setQuantity(String(Math.min(maxAmount, Math.max(0, base + delta))));
     setFieldErrors((errors) => ({ ...errors, quantity: undefined }));
   }
 
@@ -247,9 +311,15 @@ function AdjustForm({ item, onDone }: { item: AdjustableItem; onDone: () => void
           label={t.adjust.quantity[type]}
           error={errorText(fieldErrors.quantity ?? liveError)}
           hint={
-            item.reserved > 0
-              ? format(t.adjust.reservedHint, { reserved: item.reserved })
-              : undefined
+            [
+              item.reserved > 0 && format(t.adjust.reservedHint, { reserved: item.reserved }),
+              item.allocated !== undefined &&
+                format(t.adjust.poolHint, { allocated: item.allocated }),
+              item.poolAvailable !== undefined &&
+                format(t.adjust.variantPoolHint, { available: item.poolAvailable }),
+            ]
+              .filter(Boolean)
+              .join(" ") || undefined
           }
         >
           {(a11y) => (
@@ -293,7 +363,11 @@ function AdjustForm({ item, onDone }: { item: AdjustableItem; onDone: () => void
                   size="icon"
                   className="size-11"
                   aria-label={t.adjust.increaseOne}
-                  disabled={pending}
+                  // Stops at what's available (e.g. the pool's unallocated units).
+                  disabled={pending || atMax}
+                  title={
+                    atMax ? format(t.adjust.maxReached, { max: number(maxAmount) }) : undefined
+                  }
                   onClick={() => step(1)}
                 >
                   <Plus aria-hidden />
@@ -305,7 +379,7 @@ function AdjustForm({ item, onDone }: { item: AdjustableItem; onDone: () => void
                     <button
                       key={value}
                       type="button"
-                      disabled={pending}
+                      disabled={pending || value > maxAmount}
                       aria-pressed={amount === value}
                       onClick={() => {
                         setQuantity(String(value));
@@ -313,7 +387,7 @@ function AdjustForm({ item, onDone }: { item: AdjustableItem; onDone: () => void
                       }}
                       className={cn(
                         "h-8 min-w-11 border px-3 text-sm font-medium tabular-nums transition-colors",
-                        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-60",
+                        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-40",
                         amount === value
                           ? "border-foreground bg-foreground text-background"
                           : "bg-card text-muted-foreground hover:bg-accent hover:text-foreground",

@@ -5,6 +5,7 @@
 import { isUuid, SKU_PATTERN } from "@/lib/catalogue/validation";
 import { parseMoney, type MoneyError } from "@/lib/money";
 import { isCurrencyCode } from "@/lib/settings/rules";
+import { parseOptionalWeight, type WeightError } from "@/lib/shipping/rules";
 
 /** Same cap as generate_product_variants(). */
 export const MAX_VARIANTS_PER_CALL = 500;
@@ -104,7 +105,13 @@ export function suggestSku(
 // ---------------------------------------------------------------------------
 
 export type VariantFieldError =
-  "skuRequired" | "skuInvalid" | "skuTaken" | "compareAtNotHigher" | "imageInvalid" | MoneyError;
+  | "skuRequired"
+  | "skuInvalid"
+  | "skuTaken"
+  | "compareAtNotHigher"
+  | "imageInvalid"
+  | MoneyError
+  | WeightError;
 
 export interface VariantInput {
   sku: string;
@@ -113,6 +120,8 @@ export interface VariantInput {
   /** "" = no image (falls back to the product's images). */
   imageId: string;
   isActive: boolean;
+  /** Weight in kg ("" = the product's); null when the form has no weight field. */
+  weight: string | null;
 }
 
 export type VariantFieldErrors = Partial<Record<keyof VariantInput, VariantFieldError>>;
@@ -126,6 +135,7 @@ export function readVariant(data: FormData): VariantInput {
     compareAtPrice: text(data, "compareAtPrice"),
     imageId: text(data, "imageId"),
     isActive: data.get("isActive") === "on",
+    weight: data.has("weight") ? text(data, "weight") : null,
   };
 }
 
@@ -135,6 +145,10 @@ export function validateVariant(input: VariantInput, currency: string): VariantF
   if (!input.sku) errors.sku = "skuRequired";
   else if (!SKU_PATTERN.test(input.sku)) errors.sku = "skuInvalid";
   if (input.imageId && !isUuid(input.imageId)) errors.imageId = "imageInvalid";
+  if (input.weight != null) {
+    const weight = parseOptionalWeight(input.weight);
+    if (!weight.ok) errors.weight = weight.error;
+  }
   if (!isCurrencyCode(currency)) return errors;
 
   const price = parseMoney(input.price, currency);

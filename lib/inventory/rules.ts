@@ -63,6 +63,8 @@ export type AdjustmentError =
   | "belowReserved"
   | "tooLarge"
   | "noChange"
+  | "exceedsPool"
+  | "belowAllocated"
   | "reasonRequired"
   | "notesRequired"
   | "notesTooLong";
@@ -78,11 +80,26 @@ export type AdjustmentFieldErrors = Partial<
   Record<"quantity" | "reason" | "notes", AdjustmentError>
 >;
 
+/**
+ * Current stock of what's being adjusted, with the stock-pool limits
+ * (migration 042): a product with variants can't go below what its variants
+ * hold (`min`), and a variant can't go above its quantity + the pool's
+ * unallocated units (`max`).
+ */
+export interface StockLevel {
+  quantity: number;
+  reserved: number;
+  /** Product with variants: units its variants hold. */
+  min?: number;
+  /** Variant: the most it can hold within its product's pool. */
+  max?: number | null;
+}
+
 /** New quantity and signed change for an adjustment, or the rule it breaks. */
 export function previewAdjustment(
   type: AdjustmentType,
   amount: number,
-  current: { quantity: number; reserved: number },
+  current: StockLevel,
 ): { ok: true; newQuantity: number; change: number } | { ok: false; error: AdjustmentError } {
   if (type !== "set" && amount === 0) return { ok: false, error: "quantityZero" };
   const newQuantity =
@@ -93,6 +110,12 @@ export function previewAdjustment(
         : amount;
   if (newQuantity < 0) return { ok: false, error: "belowZero" };
   if (newQuantity < current.reserved) return { ok: false, error: "belowReserved" };
+  if (current.min !== undefined && newQuantity < current.min) {
+    return { ok: false, error: "belowAllocated" };
+  }
+  if (current.max != null && newQuantity > current.max && newQuantity > current.quantity) {
+    return { ok: false, error: "exceedsPool" };
+  }
   if (newQuantity > QUANTITY_MAX) return { ok: false, error: "tooLarge" };
   if (newQuantity === current.quantity) return { ok: false, error: "noChange" };
   return { ok: true, newQuantity, change: newQuantity - current.quantity };
@@ -100,7 +123,7 @@ export function previewAdjustment(
 
 export function validateAdjustment(
   input: AdjustmentInput,
-  current?: { quantity: number; reserved: number },
+  current?: StockLevel,
 ): AdjustmentFieldErrors {
   const errors: AdjustmentFieldErrors = {};
   const amount = input.quantity.trim() === "" ? null : parseWholeNumber(input.quantity);
@@ -127,4 +150,47 @@ export function parseThreshold(
   if (raw.trim() === "") return { ok: false, error: "thresholdRequired" };
   const value = parseWholeNumber(raw);
   return value === null ? { ok: false, error: "thresholdInvalid" } : { ok: true, value };
+}
+
+// ---------------------------------------------------------------------------
+// Update stock (batch)
+// ---------------------------------------------------------------------------
+
+/** adjust_stock_batch() takes at most this many lines. */
+export const MAX_BATCH_LINES = 200;
+
+/**
+ * What the Update stock page does, as an adjustment type and the reason it
+ * suggests: receive a delivery (+), count stock (= the counted number), or
+ * remove goods (−, damaged by default).
+ */
+export const BATCH_MODES = {
+  receive: { type: "increase", reason: "stock_received" },
+  count: { type: "set", reason: "stock_count_correction" },
+  remove: { type: "decrease", reason: "damaged" },
+} as const satisfies Record<string, { type: AdjustmentType; reason: AdjustmentReason }>;
+export type BatchMode = keyof typeof BATCH_MODES;
+
+export function isBatchMode(value: unknown): value is BatchMode {
+  return typeof value === "string" && Object.hasOwn(BATCH_MODES, value);
+}
+
+/**
+ * One batch line: the new on-hand quantity, "skip" for a count that matches
+ * (nothing to change), or why it can't be applied.
+ */
+export function previewBatchLine(
+  mode: BatchMode,
+  raw: string,
+  current: StockLevel,
+):
+  | { ok: true; newQuantity: number; change: number }
+  | { ok: "skip" }
+  | { ok: false; error: AdjustmentError } {
+  if (raw.trim() === "") return { ok: false, error: "quantityRequired" };
+  const amount = parseWholeNumber(raw);
+  if (amount === null) return { ok: false, error: "quantityInvalid" };
+  const type = BATCH_MODES[mode].type;
+  if (type === "set" && amount === current.quantity) return { ok: "skip" };
+  return previewAdjustment(type, amount, current);
 }
