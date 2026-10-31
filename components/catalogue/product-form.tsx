@@ -706,59 +706,37 @@ function ProductFormFields({
               </>
             ) : (
               <>
+                {/* The stock the form loaded: the server changes stock only if the
+                    field differs from it, and refuses if someone else changed it
+                    meanwhile (no silent overwrite). */}
                 <input type="hidden" name="expectedStock" value={loadedStock} readOnly />
-                {product?.inventory && (
-                  // Existing stock changes only through an adjustment with a reason
-                  // (recorded in stock history), never by overwriting the number here.
-                  <>
-                    <input type="hidden" name="stock" value={loadedStock} readOnly />
-                    <div className="flex flex-wrap items-center gap-3 rounded-xl bg-muted/50 px-3.5 py-3 text-sm">
-                      <p className="min-w-0 flex-1">
-                        <span className="block text-xs text-muted-foreground">
-                          {f.stockCurrent}
-                        </span>
-                        <span className="text-lg font-semibold tabular-nums">
-                          {Number(loadedStock).toLocaleString(locale)}
-                        </span>
-                        {reserved > 0 && (
-                          <span className="ms-2 text-xs text-muted-foreground">
-                            {format(f.stockHintReserved, { reserved })}
-                          </span>
-                        )}
-                      </p>
-                      {stockItem && <AdjustStockButton item={stockItem} onClick={openAdjust} />}
-                    </div>
-                  </>
-                )}
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {!product?.inventory && (
-                    <Field
-                      id={`${id}-stock`}
-                      label={f.stock}
-                      hint={
-                        product
-                          ? reserved > 0
-                            ? format(f.stockHintReserved, { reserved })
-                            : f.stockHintEdit
-                          : f.stockHintNew
-                      }
-                      error={errorText(fieldErrors.stock)}
-                    >
-                      {(a11y) => (
-                        <Input
-                          {...a11y}
-                          name="stock"
-                          inputMode="numeric"
-                          dir="ltr"
-                          required
-                          autoComplete="off"
-                          disabled={pending}
-                          value={stock}
-                          onChange={(event) => setStock(event.target.value)}
-                        />
-                      )}
-                    </Field>
-                  )}
+                  <Field
+                    id={`${id}-stock`}
+                    label={f.stock}
+                    hint={
+                      product
+                        ? reserved > 0
+                          ? format(f.stockHintReserved, { reserved })
+                          : f.stockHintEdit
+                        : f.stockHintNew
+                    }
+                    error={errorText(fieldErrors.stock)}
+                  >
+                    {(a11y) => (
+                      <Input
+                        {...a11y}
+                        name="stock"
+                        inputMode="numeric"
+                        dir="ltr"
+                        required
+                        autoComplete="off"
+                        disabled={pending}
+                        value={stock}
+                        onChange={(event) => setStock(event.target.value)}
+                      />
+                    )}
+                  </Field>
                   <Field
                     id={`${id}-threshold`}
                     label={f.lowStockThreshold}
@@ -787,6 +765,12 @@ function ProductFormFields({
                   loadedStock={product ? loadedStock : null}
                   historyHref={product ? `/${locale}/admin/inventory/${product.id}` : null}
                 />
+                {/* For a change with a reason and note (saved straight away). */}
+                {stockItem && (
+                  <div>
+                    <AdjustStockButton item={stockItem} onClick={openAdjust} />
+                  </div>
+                )}
               </>
             )}
           </Section>
