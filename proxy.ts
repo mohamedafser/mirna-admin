@@ -58,8 +58,9 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Skip static assets, PWA files and image files.
+  // Skip static assets, PWA files, image files and Route Handlers under /api
+  // (Stripe webhooks and the payment expiry job: no locale, no session).
   matcher: [
-    "/((?!_next/static|_next/image|icons/|sw\\.js|offline\\.html|manifest\\.webmanifest|favicon\\.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp|avif|ico|txt|xml)$).*)",
+    "/((?!api/|_next/static|_next/image|icons/|sw\\.js|offline\\.html|manifest\\.webmanifest|favicon\\.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp|avif|ico|txt|xml)$).*)",
   ],
 };

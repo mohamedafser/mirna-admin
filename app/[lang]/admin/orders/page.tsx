@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { ListToolbar } from "@/components/catalogue/list-toolbar";
 import { Pagination } from "@/components/catalogue/pagination";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
+import { PaymentStatusBadge } from "@/components/payments/payment-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EmptyState, PageSkeleton } from "@/components/ui/states";
@@ -16,6 +17,7 @@ import { getLocale, getMessages } from "@/lib/i18n/server";
 import { getStoreRegion } from "@/lib/settings/queries";
 import { listOrders, parseOrderParams, type OrderListRow } from "@/lib/orders/queries";
 import { ORDER_PERIODS, ORDER_STATUSES } from "@/lib/orders/rules";
+import { PAYMENT_STATUSES } from "@/lib/payments/rules";
 
 export async function generateMetadata(): Promise<Metadata> {
   const messages = await getMessages();
@@ -40,7 +42,12 @@ async function Orders({ searchParams }: Pick<PageProps<"/[lang]/admin/orders">, 
   const params = parseOrderParams(await searchParams);
   const result = await listOrders(params, timeZone);
 
-  const listParams = { q: params.q, status: params.status, period: params.period };
+  const listParams = {
+    q: params.q,
+    status: params.status,
+    payment: params.payment,
+    period: params.period,
+  };
   // Past the last page (e.g. after filtering): go to the last one.
   if (result.rows.length === 0 && result.total > 0) {
     const query = new URLSearchParams(Object.entries(listParams).filter(([, value]) => value));
@@ -50,7 +57,7 @@ async function Orders({ searchParams }: Pick<PageProps<"/[lang]/admin/orders">, 
 
   const t = messages.orders;
   const common = messages.catalogue.common;
-  const filtered = Boolean(params.q || params.status || params.period);
+  const filtered = Boolean(params.q || params.status || params.payment || params.period);
   const href = (order: OrderListRow) => `/${locale}/admin/orders/${order.id}`;
   const number = (order: OrderListRow) => `#${order.order_number}`;
   const date = (value: string) => formatDateTime(value, locale, undefined, timeZone);
@@ -63,6 +70,9 @@ async function Orders({ searchParams }: Pick<PageProps<"/[lang]/admin/orders">, 
   const items = (order: OrderListRow) => format(t.itemCount, { count: order.items[0]?.count ?? 0 });
   const status = (order: OrderListRow) => (
     <OrderStatusBadge status={order.status} label={t.status[order.status]} />
+  );
+  const payment = (order: OrderListRow) => (
+    <PaymentStatusBadge status={order.payment_status} labels={t.payment.status} />
   );
 
   return (
@@ -85,6 +95,15 @@ async function Orders({ searchParams }: Pick<PageProps<"/[lang]/admin/orders">, 
             options: [
               { value: "", label: t.allStatuses },
               ...ORDER_STATUSES.map((s) => ({ value: s, label: t.status[s] })),
+            ],
+          },
+          {
+            name: "payment",
+            label: t.paymentFilter,
+            options: [
+              { value: "", label: t.allPayments },
+              ...PAYMENT_STATUSES.map((s) => ({ value: s, label: t.payment.status[s] })),
+              { value: "none", label: t.payment.status.none },
             ],
           },
           {
@@ -174,9 +193,7 @@ async function Orders({ searchParams }: Pick<PageProps<"/[lang]/admin/orders">, 
                     </td>
                     <td className="px-4 py-2.5 text-end font-medium">{total(order)}</td>
                     <td className="px-4 py-2.5">{status(order)}</td>
-                    <td className="hidden px-4 py-2.5 xl:table-cell">
-                      <Badge>{t.payment.notPaidOnline}</Badge>
-                    </td>
+                    <td className="hidden px-4 py-2.5 xl:table-cell">{payment(order)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -202,6 +219,7 @@ async function Orders({ searchParams }: Pick<PageProps<"/[lang]/admin/orders">, 
                     </span>
                     <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                       {status(order)}
+                      {order.payment_status && payment(order)}
                       <span>{date(order.created_at)}</span>
                     </span>
                   </span>

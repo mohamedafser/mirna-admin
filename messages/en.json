@@ -136,7 +136,9 @@
     "currencies": "Currencies",
     "shipping": "Shipping",
     "stockUpdate": "Update stock",
-    "stockMovements": "Stock movements"
+    "stockMovements": "Stock movements",
+    "payments": "Payments",
+    "newOrders": "{count} new order(s) waiting"
   },
   "admin": {
     "welcomeTitle": "Welcome to Mirna Admin",
@@ -1337,7 +1339,108 @@
     "payment": {
       "title": "Payment",
       "notPaidOnline": "Not paid online",
-      "note": "No online payment is recorded for this order. Payment is arranged with the customer."
+      "note": "No online payment is recorded for this order. Payment is arranged with the customer.",
+      "status": {
+        "PENDING": "Awaiting payment",
+        "PROCESSING": "Processing",
+        "PAID": "Paid",
+        "FAILED": "Payment failed",
+        "CANCELLED": "Payment cancelled",
+        "PARTIALLY_REFUNDED": "Partially refunded",
+        "REFUNDED": "Refunded",
+        "none": "Not paid online"
+      },
+      "noAttempt": "The customer hasn't started paying yet.",
+      "dueBy": "Payment due by {date}. Unpaid orders are cancelled automatically and their items go back into stock.",
+      "overdue": "The payment deadline passed on {date}. The order will be cancelled automatically.",
+      "paidOn": "Paid {date}",
+      "amount": "Amount",
+      "received": "Received",
+      "refunded": "Refunded",
+      "method": "Method",
+      "card": "{brand} •••• {last4}",
+      "wallets": {
+        "apple_pay": "Apple Pay",
+        "google_pay": "Google Pay",
+        "link": "Link",
+        "samsung_pay": "Samsung Pay"
+      },
+      "reference": "Stripe payment",
+      "charge": "Stripe charge",
+      "stripeStatus": "Stripe status",
+      "failure": "Last attempt declined: {reason}",
+      "testMode": "Test mode",
+      "viewInStripe": "Open in Stripe",
+      "refresh": "Refresh from Stripe",
+      "refreshed": "Payment refreshed from Stripe.",
+      "attempt": "Attempt {number}",
+      "refund": "Refund",
+      "refundTitle": "Refund order #{number}",
+      "refundBody": "Stripe returns the money to the customer's original payment method. Up to {amount} can be refunded.",
+      "refundAmount": "Amount to refund",
+      "refundAll": "Refund everything",
+      "refundReason": "Reason",
+      "reasons": {
+        "requested_by_customer": "Requested by the customer",
+        "duplicate": "Duplicate payment",
+        "fraudulent": "Fraudulent",
+        "expired_uncaptured_charge": "Expired authorisation"
+      },
+      "refundNote": "Internal note",
+      "refundNoteHint": "Visible to admins only (stored with the refund at Stripe).",
+      "refundFullNote": "A full refund marks the order Refunded and, if it hasn't shipped yet, puts its items back into stock.",
+      "refundSubmit": "Refund {amount}",
+      "refundSent": "Refund of {amount} sent to Stripe.",
+      "refunds": "Refunds",
+      "refundStatus": {
+        "PENDING": "Pending",
+        "REQUIRES_ACTION": "Action required",
+        "SUCCEEDED": "Refunded",
+        "FAILED": "Failed",
+        "CANCELLED": "Cancelled"
+      },
+      "refundBy": "By {name}",
+      "refundFromStripe": "Made in Stripe or automatically",
+      "history": "Transaction history",
+      "noHistory": "No payment activity yet.",
+      "events": {
+        "payment_intent.succeeded": "Payment succeeded",
+        "payment_intent.payment_failed": "Payment failed",
+        "payment_intent.processing": "Payment processing",
+        "payment_intent.canceled": "Payment cancelled",
+        "payment_intent.requires_action": "Authentication requested (3D Secure)",
+        "charge.refunded": "Charge refunded",
+        "charge.refund.updated": "Refund updated",
+        "refund.created": "Refund created",
+        "refund.updated": "Refund updated",
+        "refund.failed": "Refund failed"
+      },
+      "eventOutcome": {
+        "applied": "Applied",
+        "ignored": "Ignored",
+        "failed": "Failed — Stripe will retry"
+      },
+      "errors": {
+        "forbidden": "You don't have permission to do that.",
+        "notFound": "This payment no longer exists.",
+        "notConfigured": "Stripe isn't configured on the server (STRIPE_SECRET_KEY, SUPABASE_SERVICE_ROLE_KEY).",
+        "notRefundable": "This payment can't be refunded.",
+        "amountInvalid": "Enter an amount greater than zero, with no more decimals than the currency has.",
+        "amountTooLarge": "That's more than can still be refunded.",
+        "reasonInvalid": "Choose a reason.",
+        "domainInvalid": "Enter a public domain name, e.g. shop.example.com.",
+        "conflict": "These settings were changed by someone else. The latest values are now shown.",
+        "stripe": "Stripe refused the request: {detail}",
+        "unexpected": "Something went wrong. Please try again."
+      },
+      "timeline": {
+        "started": "Payment of {amount} started",
+        "declined": "Payment declined",
+        "paid": "Payment of {amount} received",
+        "cancelled": "Payment cancelled",
+        "refund": "Refund of {amount} · {status}",
+        "webhook": "Stripe webhook: {event} · {outcome}"
+      }
     },
     "emptyTitle": "No orders yet",
     "emptyBody": "Orders placed in the storefront appear here.",
@@ -1384,7 +1487,14 @@
       "deliveryMethod": "Delivery method",
       "freeDelivery": "Free delivery applied (usually {amount})",
       "noDeliveryMethod": "Placed before delivery methods existed",
-      "rateBasis": "{type} · parcel {weight} kg"
+      "rateBasis": "{type} · parcel {weight} kg",
+      "cancelBodyOnline": "Its payment is cancelled at Stripe first, so the customer can't pay it any more, and its items go back into stock. This can't be undone.",
+      "awaitingPayment": "Waiting for the customer's payment. The order is confirmed automatically once it's paid.",
+      "paidCancelNote": "This order has been paid: refund it (Payment) instead of cancelling.",
+      "cancelRefund": "Cancel and refund",
+      "cancelRefundTitle": "Cancel and refund order #{number}?",
+      "cancelRefundBody": "The customer's payment is refunded in full through Stripe (anything already refunded is not refunded again), the order is marked Refunded and its items go back into stock. This can't be undone.",
+      "cancelRefundDone": "Order #{number} cancelled. The refund was sent to Stripe."
     },
     "errors": {
       "forbidden": "You don't have permission to do that.",
@@ -1392,8 +1502,14 @@
       "invalidTransition": "That status change isn't allowed.",
       "conflict": "This order was changed by someone else. The latest status is now shown.",
       "network": "Couldn't reach the server. Check your connection and try again.",
-      "unexpected": "Something went wrong. Please try again."
-    }
+      "unexpected": "Something went wrong. Please try again.",
+      "paymentRequired": "This order hasn't been paid yet. It moves forward once its payment succeeds.",
+      "paymentCaptured": "This order has been paid. Refund it instead of cancelling.",
+      "paymentsNotConfigured": "Stripe isn't configured on the server.",
+      "stripe": "Stripe couldn't cancel the payment. Please try again."
+    },
+    "paymentFilter": "Payment",
+    "allPayments": "All payments"
   },
   "customers": {
     "title": "Customers",
@@ -1824,5 +1940,79 @@
       "upToNotHigher": "Must be higher than where the band starts."
     },
     "fromAmount": "from {amount}"
+  },
+  "payments": {
+    "title": "Payments",
+    "subtitle": "Online card and Apple Pay payments through Stripe.",
+    "missingTitle": "Payments aren't set up yet",
+    "missingBody": "Apply database migration 044 (supabase/migrations) to enable online payments.",
+    "connection": {
+      "title": "Stripe connection",
+      "mode": {
+        "live": "Live mode",
+        "test": "Test mode",
+        "unknown": "Unknown key type"
+      },
+      "secretKey": "Secret key (STRIPE_SECRET_KEY)",
+      "webhookSecret": "Webhook signing secret (STRIPE_WEBHOOK_SECRET)",
+      "cronSecret": "Expiry job secret (CRON_SECRET)",
+      "set": "Configured",
+      "notSet": "Not configured",
+      "keysNote": "Keys are read from the server's environment and never shown here.",
+      "webhookUrl": "Webhook endpoint",
+      "webhookHint": "Add this URL in Stripe Dashboard → Developers → Webhooks with the events listed in the README.",
+      "account": "Account",
+      "country": "Country",
+      "charges": "Card payments",
+      "chargesEnabled": "Enabled",
+      "chargesDisabled": "Not enabled yet — finish activating the account in Stripe.",
+      "verifiedOn": "Checked {date}",
+      "notVerified": "Not checked yet",
+      "verify": "Check Stripe account",
+      "verified": "Stripe account checked.",
+      "liveMismatch": "The stored account was checked with a different key mode. Check it again."
+    },
+    "settings": {
+      "title": "Checkout",
+      "enable": "Take payments online",
+      "enableHint": "Customers pay by card or Apple Pay when they place an order. When off, orders are placed without online payment, as before.",
+      "currencies": "Currencies customers can pay in",
+      "currenciesHint": "Only currencies your Stripe account supports are offered. Checkout in any other currency is blocked while online payments are on.",
+      "notSupported": "Not supported by this Stripe account",
+      "inactive": "Not sold in the store",
+      "decimalsMismatch": "Store uses {store} decimals, Stripe {stripe}",
+      "threeDecimalNote": "KWD, BHD and OMR amounts are charged to the fils / baisa. Some card networks only accept amounts ending in 0, so price these currencies in steps of 0.010.",
+      "verifyFirst": "Check the Stripe account first to see which currencies it supports.",
+      "window": "Payment window (minutes)",
+      "windowHint": "How long an unpaid order keeps its items reserved (15–1440). Then it's cancelled and they go back into stock.",
+      "save": "Save",
+      "saved": "Payment settings saved.",
+      "errors": {
+        "currencyUnsupported": "Stripe doesn't support {codes} for this account.",
+        "currencyInactive": "{codes} isn't sold in the store (Currencies).",
+        "currencyDecimals": "{codes}: the store's decimals don't match Stripe's. Fix them in Currencies first.",
+        "currenciesRequired": "Choose at least one currency.",
+        "windowInvalid": "Enter a whole number of minutes between 15 and 1440.",
+        "notVerified": "Check the Stripe account before switching payments on.",
+        "chargesDisabled": "This Stripe account can't take payments yet.",
+        "webhookMissing": "Set STRIPE_WEBHOOK_SECRET on the server first: without webhooks, payments are never confirmed."
+      }
+    },
+    "applePay": {
+      "title": "Apple Pay",
+      "body": "Apple Pay appears in checkout on Safari and Apple devices once the storefront's domain is registered and active here. Stripe handles Apple's merchant verification; no file needs to be hosted. Register every domain customers use (e.g. both example.com and www.example.com).",
+      "requirements": "Also needed: HTTPS, Apple Pay switched on in Stripe Dashboard → Settings → Payment methods, and a customer device with a card in Apple Wallet.",
+      "domain": "Domain",
+      "register": "Register domain",
+      "registered": "Domain registered with Stripe.",
+      "validate": "Check again",
+      "validated": "Stripe checked the domain again.",
+      "active": "Active",
+      "inactive": "Inactive",
+      "disabled": "Disabled",
+      "none": "No domains registered yet.",
+      "testModeNote": "Domains registered in live mode are also available in test mode.",
+      "unavailable": "Stripe couldn't be reached: {detail}"
+    }
   }
 }

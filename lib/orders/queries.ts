@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { pageRange, searchPattern, toPage, type Page } from "@/lib/catalogue/queries";
+import { isPaymentStatus, type PaymentStatus } from "@/lib/payments/rules";
 import { createClient } from "@/lib/supabase/server";
 import type { OrderStatus } from "@/types/domain";
 import { isOrderPeriod, isOrderStatus, ORDER_PERIODS, type OrderPeriod } from "./rules";
@@ -19,6 +20,8 @@ export const ORDER_PAGE_SIZE = 25;
 export interface OrderListParams {
   q: string;
   status: OrderStatus | "";
+  /** Online payment status (migration 044); "none": not paid online. */
+  payment: PaymentStatus | "none" | "";
   period: OrderPeriod | "";
   page: number;
 }
@@ -27,6 +30,7 @@ export interface OrderListRow {
   id: string;
   order_number: number;
   status: OrderStatus;
+  payment_status: PaymentStatus | null;
   total: string;
   currency_code: string;
   created_at: string;
@@ -78,6 +82,10 @@ export interface OrderDetail {
   id: string;
   order_number: number;
   status: OrderStatus;
+  /** null: no online payment (placed before migration 044 or with Stripe off). */
+  payment_status: PaymentStatus | null;
+  payment_due_at: string | null;
+  paid_at: string | null;
   subtotal: string;
   discount: string;
   shipping: string;
@@ -113,11 +121,13 @@ export function parseOrderParams(
   searchParams: Record<string, string | string[] | undefined>,
 ): OrderListParams {
   const status = first(searchParams.status);
+  const payment = first(searchParams.payment);
   const period = first(searchParams.period);
   const page = Number.parseInt(first(searchParams.page), 10);
   return {
     q: first(searchParams.q).trim().slice(0, 100),
     status: isOrderStatus(status) ? status : "",
+    payment: isPaymentStatus(payment) || payment === "none" ? payment : "",
     period: isOrderPeriod(period) ? period : "",
     page: Number.isFinite(page) && page > 0 ? page : 1,
   };
@@ -169,7 +179,7 @@ export async function listOrders(
   let query = supabase
     .from("orders")
     .select(
-      `id, order_number, status, total::text, currency_code, created_at,
+      `id, order_number, status, payment_status, total::text, currency_code, created_at,
        customer_name:shipping_address_snapshot->customer->>full_name,
        customer_email:shipping_address_snapshot->customer->>email,
        recipient:shipping_address_snapshot->>full_name,
@@ -198,11 +208,29 @@ export async function listOrders(
     }
   }
   if (params.status) query = query.eq("status", params.status);
+  if (params.payment === "none") query = query.is("payment_status", null);
+  else if (params.payment) query = query.eq("payment_status", params.payment);
   if (params.period) query = query.gte("created_at", periodStart(params.period, timeZone));
 
   const { data, error, count } = await query.range(...pageRange(params.page, ORDER_PAGE_SIZE));
   if (error) fail("orders", error);
   return toPage(data as unknown as OrderListRow[], count ?? 0, params.page, ORDER_PAGE_SIZE);
+}
+
+/**
+ * Orders waiting on the store (sidebar badge): not paid online and still
+ * PENDING (to confirm), or CONFIRMED (to process; paid online orders are
+ * confirmed automatically). Orders still waiting for the customer's online
+ * payment aren't counted: there's nothing to do yet.
+ */
+export async function countNewOrders(): Promise<number> {
+  const supabase = await createClient();
+  const { count, error } = await supabase
+    .from("orders")
+    .select("id", { count: "exact", head: true })
+    .or("status.eq.CONFIRMED,and(status.eq.PENDING,payment_status.is.null)");
+  if (error) fail("new orders count", error);
+  return count ?? 0;
 }
 
 /** One order with its items and account. Memoised per request. */
@@ -211,7 +239,7 @@ export const getOrder = cache(async (id: string): Promise<OrderDetail | null> =>
   const { data, error } = await supabase
     .from("orders")
     .select(
-      `id, order_number, status, subtotal::text, discount::text, shipping::text, tax::text,
+      `id, order_number, status, payment_status, payment_due_at, paid_at, subtotal::text, discount::text, shipping::text, tax::text,
        total::text, currency_code, created_at, updated_at, user_id,
        shipping_address_snapshot, billing_address_snapshot, shipping_snapshot,
        account:profiles(full_name, phone, is_active),

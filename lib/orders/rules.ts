@@ -1,3 +1,4 @@
+import type { PaymentStatus } from "@/lib/payments/rules";
 import type { OrderStatus } from "@/types/domain";
 
 /**
@@ -7,6 +8,12 @@ import type { OrderStatus } from "@/types/domain";
  *
  *   PENDING → CONFIRMED → PROCESSING → SHIPPED → DELIVERED
  *   PENDING / CONFIRMED / PROCESSING → CANCELLED
+ *
+ * Orders paid online (migration 044) also follow their payment: they move
+ * forward only once paid (a paid PENDING order is confirmed automatically),
+ * a paid order is refunded rather than cancelled (a full refund makes it
+ * REFUNDED), and an unpaid one can be cancelled (its PaymentIntent is
+ * cancelled at Stripe first). `payment` null: no online payment.
  */
 export const ORDER_STATUSES = [
   "PENDING",
@@ -24,16 +31,31 @@ const NEXT: Record<OrderStatus, readonly OrderStatus[]> = {
   SHIPPED: ["DELIVERED"],
   DELIVERED: [],
   CANCELLED: [],
-  // Reserved for a later refunds phase; never reached from here.
+  // Reached through a full refund (Payments), never from here.
   REFUNDED: [],
 };
 
-export function nextStatuses(status: OrderStatus): readonly OrderStatus[] {
-  return NEXT[status];
+function paymentAllows(to: OrderStatus, payment: PaymentStatus | null): boolean {
+  if (payment === null) return true;
+  if (to === "CANCELLED") {
+    return payment !== "PROCESSING" && payment !== "PAID" && payment !== "PARTIALLY_REFUNDED";
+  }
+  return payment === "PAID" || payment === "PARTIALLY_REFUNDED";
 }
 
-export function canTransition(from: OrderStatus, to: OrderStatus): boolean {
-  return NEXT[from].includes(to);
+export function nextStatuses(
+  status: OrderStatus,
+  payment: PaymentStatus | null = null,
+): readonly OrderStatus[] {
+  return NEXT[status].filter((to) => paymentAllows(to, payment));
+}
+
+export function canTransition(
+  from: OrderStatus,
+  to: OrderStatus,
+  payment: PaymentStatus | null = null,
+): boolean {
+  return NEXT[from].includes(to) && paymentAllows(to, payment);
 }
 
 export function isOrderStatus(value: unknown): value is OrderStatus {

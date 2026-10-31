@@ -117,6 +117,11 @@ npm run dev                     # http://localhost:3005 → redirects to /en/adm
 | `NEXT_PUBLIC_SUPABASE_URL`             | Supabase → Project Settings → API | Project URL                                                                                    |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | same                              | `sb_publishable_…` key (the legacy `anon` key also works). Public by design; RLS protects data |
 | `NEXT_PUBLIC_REGION`                   | optional                          | Market key from `config/region.ts` (default `AE`)                                              |
+| `STRIPE_SECRET_KEY`                    | Stripe → Developers → API keys    | Server-only. Webhooks, refunds, cancelling unpaid payments, Payments page                      |
+| `STRIPE_WEBHOOK_SECRET`                | Stripe → Developers → Webhooks    | Server-only. Signing secret of `/api/stripe/webhook`                                           |
+| `CRON_SECRET`                          | `openssl rand -hex 32`            | Server-only. Bearer token for `/api/stripe/expire-orders`                                      |
+| `PAYMENTS_SYNC_SECRET`                 | `openssl rand -hex 32`            | Server-only. Same value as the storefront's; authorises `/api/stripe/sync`                     |
+| `STOREFRONT_URL`                       | optional                          | Storefront URL, suggested as the Apple Pay domain                                              |
 
 `.env*` files are git-ignored (except `.env.example`). **Never** expose `SUPABASE_SERVICE_ROLE_KEY`: it must never get a `NEXT_PUBLIC_` prefix or be imported by client code. Phase 1 does not use it.
 
@@ -448,8 +453,92 @@ Sidebar → **Inventory**: Stock levels, Update stock, Stock movements.
 - **List:** 25 per page, newest first. Search by order number (`#123` or `123`) or by customer name, email, recipient name or phone from the checkout snapshot. Filters: status, and date (today / last 7, 30, 90 days, in the market timezone). State lives in the URL, using the shared `ListToolbar` and `Pagination`.
 - **Details:** the stored order only: `order_items` name, SKU, quantity, unit price and line total, and `orders` subtotal, discount, delivery, tax and total. The customer and shipping address come from `shipping_address_snapshot`, plus the account's current state (deleted or inactive). **Nothing is re-priced from current products.** Money columns are read as text.
 - **Status:** buttons offer only the allowed next steps. Cancelling asks for confirmation. `updateOrderStatus` re-checks the admin and the workflow (`lib/orders/rules.ts`), then updates with the admin's own session (`eq("status", from)`, so a stale page gets "changed by someone else" instead of overwriting). The database rejects invalid moves anyway (migration 018). `updated_at` is set by the existing trigger. Admins can only change `status`: totals and items have no update grant.
-- **Payment status:** shown as "Not paid online". There is no payment integration or payment column yet, so nothing is recorded.
-- **Not included:** customer order history, refunds, shipping integration, payment gateway, coupons, notifications, stock reservation or deduction.
+- **Payment:** orders paid online show their payment status (list column + filter, detail badge and panel); see [Payments (Stripe)](#payments-stripe). Orders placed before migration 044, or while online payment is off, show "Not paid online".
+- **Not included:** shipping integration, coupons, notifications.
+
+## Payments (Stripe)
+
+Card and Apple Pay payments through Stripe Payment Intents and the Payment Element, in the storefront's checkout. Migration 044. Card details never reach Mirna: they go from Stripe's iframes straight to Stripe. Only Stripe references (`pi_…`, `ch_…`, `re_…`), the card brand, last four digits and wallet are stored.
+
+### How it fits together
+
+| Step           | Where                                          | What happens                                                                                                                                                                                                                                                                                                                                                                 |
+| -------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Place order | storefront → `place_order()`                   | Unchanged. When Stripe is on, the `orders_payment_required` trigger marks the order `payment_status = PENDING` with a deadline (`payment_due_at`), or refuses a currency online payment isn't enabled for. Stock is taken as before (held until paid or expired).                                                                                                            |
+| 2. Pay         | storefront `/checkout/pay/[id]`                | `startPayment()` reads `order_payment_state()` (own order only; amount in minor units computed **in the database** from the stored total), creates the PaymentIntent server-side (idempotency key per order, `metadata.order_id`), links it with `attach_payment_intent()`, and returns the client secret. The Payment Element confirms it (3D Secure handled by Stripe.js). |
+| 3. Confirm     | Stripe → **mirna-admin** `/api/stripe/webhook` | Signature verified on the raw body. `claim_payment_event()` makes redeliveries no-ops. The PaymentIntent is **re-read from Stripe** and applied by `sync_stripe_payment()`, which checks `metadata.order_id`, the amount and the currency against the order before moving anything. Paid → order `CONFIRMED`.                                                                |
+| 4. Expire      | scheduler → `/api/stripe/expire-orders`        | Unpaid orders past their deadline: the PaymentIntent is cancelled at Stripe first, then `cancel_unpaid_order()` cancels the order and its stock goes back (migration 043 trigger).                                                                                                                                                                                           |
+| 5. Refund      | admin order page                               | `refundPayment()` checks the refundable amount, creates the refund at Stripe (idempotency key per dialog), then syncs. A full refund marks the order `REFUNDED` and restocks it if it hadn't shipped.                                                                                                                                                                        |
+
+**Immediate confirmation (optional):** with `PAYMENTS_SYNC_SECRET` set in both apps (and `ADMIN_URL` in the storefront), the storefront's confirmation page and its JSON endpoint `GET /api/orders/[id]/payment` ask `POST /api/stripe/sync` here to apply a payment Stripe already reports as succeeded, so the order is confirmed without waiting for the webhook. Only the PaymentIntent id is sent; it's re-read from Stripe and applied exactly like a webhook. Webhooks remain the source of truth for everything else (failures, refunds, async methods).
+
+The browser's "payment succeeded" is never trusted: the storefront only navigates to the confirmation page, which shows the webhook-stored status (and polls while it's on its way).
+
+**Why the webhook lives here:** it needs to write payment state as a trusted party. mirna-admin already holds the service-role key; the storefront deliberately doesn't. Everything else the storefront does runs with the customer's own session through SECURITY DEFINER functions that check ownership.
+
+### Statuses
+
+`payments.status` / `orders.payment_status`: `PENDING` (awaiting payment, 3D Secure in progress), `PROCESSING`, `PAID`, `FAILED` (declined; the customer can retry on the same PaymentIntent until the deadline), `CANCELLED`, `PARTIALLY_REFUNDED`, `REFUNDED`. `orders.payment_status` is `null` for orders not paid online.
+
+Moves are monotonic (`private.payment_status_allowed`): a stale or out-of-order read can never take a paid payment back to pending. The order workflow respects the payment (trigger + `lib/orders/rules.ts`): an unpaid order can't move forward, a paid order is refunded instead of cancelled, and an order with a live PaymentIntent is cancelled through mirna-admin (which cancels it at Stripe first). A payment that lands on an already-cancelled order is refunded automatically.
+
+### Tables (RLS)
+
+| Table                           | Customers                                          | Admins        | Writes                          |
+| ------------------------------- | -------------------------------------------------- | ------------- | ------------------------------- |
+| `payment_settings` (single row) | — (public subset via `checkout_payment_options()`) | read / update | admin session                   |
+| `payments`                      | read own                                           | read          | SECURITY DEFINER functions only |
+| `refunds`                       | read own                                           | read          | `sync_stripe_payment()` only    |
+| `payment_events`                | —                                                  | read          | service role functions only     |
+
+`sync_stripe_payment`, `claim_payment_event`, `finish_payment_event`, `cancel_unpaid_order` and `expired_unpaid_orders` are executable by `service_role` only.
+
+### Admin screens
+
+- **Payments** (`/admin/payments`, Store setup): which server secrets are set (never their values), test/live mode, the webhook URL to copy, **Check Stripe account** (charges enabled, country, supported currencies from Stripe's `country_specs`), the on/off switch, the currencies customers may pay in (only those the account supports, the store sells and whose decimals match Stripe's), the payment window (15–1440 min), and **Apple Pay domains** (register / re-check with Stripe's Payment Method Domains API).
+- **Order details → Payment:** status, deadline, method (e.g. `Apple Pay · VISA •••• 4242`), Stripe PaymentIntent (link to the Dashboard) and charge ids, failure reason, refunds (amount, status, who, reason, note), **Refund**, **Refresh from Stripe** and the transaction history (webhook events and their outcome).
+
+### Currencies
+
+AED, SAR, QAR, USD, GBP use 2 decimals; KWD, BHD, OMR use 3, exactly as Stripe expects, so the database's minor units are sent unchanged. A currency whose store decimals differ from Stripe's can't be enabled. Nothing is converted: an order is charged in its own currency. Stripe's per-currency minimum charge (e.g. AED 2.00) applies. Some card networks only accept three-decimal amounts ending in 0, so price KWD / BHD / OMR in steps of 0.010.
+
+### Stripe Dashboard configuration
+
+1. **API keys** (Developers → API keys): secret key → `STRIPE_SECRET_KEY` here; publishable key + a restricted key (PaymentIntents: Write) → the storefront. Use the same account and mode in both apps.
+2. **Webhook** (Developers → Webhooks → Add endpoint): `https://<admin host>/api/stripe/webhook`, events
+   `payment_intent.succeeded`, `payment_intent.payment_failed`, `payment_intent.processing`, `payment_intent.canceled`, `payment_intent.requires_action`, `charge.refunded`, `charge.refund.updated`, `refund.created`, `refund.updated`, `refund.failed`.
+   Copy its signing secret to `STRIPE_WEBHOOK_SECRET`. Create one endpoint per mode (test and live have separate secrets).
+3. **Payment methods** (Settings → Payment methods): turn on Cards and Apple Pay (Google Pay / Link optional). The Payment Element shows what's enabled there and supported for the currency.
+4. **Apple Pay domain:** Payments → Apple Pay in this app (or Dashboard → Settings → Payment method domains). Register every storefront host (`example.com` **and** `www.example.com` if both are used). Stripe performs Apple's merchant validation; no file needs to be hosted. Domains registered in live mode also work in test mode.
+5. **Branding / receipts** (optional): Settings → Branding, and Customer emails → "Successful payments" to email receipts (`receipt_email` is set from the order).
+
+### Deployment
+
+1. Apply migration 044 (`supabase db push`, or run it in the SQL editor).
+2. Set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `CRON_SECRET` (and optionally `STOREFRONT_URL`) on mirna-admin; `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` on the storefront. Redeploy both (the publishable key is inlined at build time).
+3. Schedule `GET https://<admin host>/api/stripe/expire-orders` with `Authorization: Bearer $CRON_SECRET` every 5 minutes (Vercel Cron, GitHub Actions, cron-job.org, …). Without it, abandoned orders keep their stock reserved.
+4. Payments → Check Stripe account → choose currencies → switch on.
+5. Register the storefront domain for Apple Pay. Both apps must be served over HTTPS.
+
+### Testing (Stripe test mode)
+
+Local webhooks: `stripe listen --forward-to localhost:3005/api/stripe/webhook` and use the printed `whsec_…` as `STRIPE_WEBHOOK_SECRET`.
+
+| Scenario            | How                                                                                               | Expected                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Success             | card `4242 4242 4242 4242`, any future date / CVC                                                 | Confirmation shows "confirming", then "paid"; order `CONFIRMED`, payment `PAID` with brand / last 4 |
+| Decline + retry     | `4000 0000 0000 0002`, then `4242…`                                                               | Message under the form, payment `FAILED`, retry on the same page succeeds                           |
+| 3D Secure           | `4000 0027 6000 3184` (complete / fail the challenge)                                             | Stripe's modal; outcome as above                                                                    |
+| Insufficient funds  | `4000 0000 0000 9995`                                                                             | Declined with Stripe's message                                                                      |
+| Duplicate webhooks  | `stripe events resend <evt_id>`                                                                   | Second delivery returns `outcome: duplicate`; nothing changes                                       |
+| Out-of-order events | `stripe trigger payment_intent.processing` after success                                          | Status stays `PAID`                                                                                 |
+| Webhook outage      | stop `stripe listen`, pay, then **Refresh from Stripe** on the order                              | Payment and order catch up                                                                          |
+| Refunds             | Refund part, then the rest                                                                        | `PARTIALLY_REFUNDED`, then `REFUNDED`; order `REFUNDED`, stock back if unshipped                    |
+| Expiry              | set the window to 15 min, place an order, wait, call the expiry route                             | Order `CANCELLED`, PaymentIntent cancelled, stock back                                              |
+| Bad signature       | `curl -X POST …/api/stripe/webhook -d '{}'`                                                       | `400`, nothing stored                                                                               |
+| Apple Pay           | Safari on macOS / iOS with a card in Wallet, on a registered HTTPS domain (ngrok works for local) | Apple Pay tab in the Payment Element; absent elsewhere, cards always shown                          |
+
+Check the result in Supabase too: `payments`, `refunds`, `payment_events` and `orders.payment_status`.
 
 ## Shipping
 

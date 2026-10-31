@@ -136,7 +136,9 @@
     "currencies": "العملات",
     "shipping": "الشحن",
     "stockUpdate": "تحديث المخزون",
-    "stockMovements": "حركات المخزون"
+    "stockMovements": "حركات المخزون",
+    "payments": "المدفوعات",
+    "newOrders": "{count} طلب جديد بانتظار المعالجة"
   },
   "admin": {
     "welcomeTitle": "مرحبًا بك في لوحة إدارة ميرنا",
@@ -1336,8 +1338,109 @@
     },
     "payment": {
       "title": "الدفع",
-      "notPaidOnline": "غير مدفوع عبر الإنترنت",
-      "note": "لا يوجد دفع إلكتروني مسجّل لهذا الطلب. يتم ترتيب الدفع مع العميل."
+      "notPaidOnline": "غير مدفوع إلكترونيًا",
+      "note": "لا توجد دفعة إلكترونية مسجلة لهذا الطلب. يتم ترتيب الدفع مع العميل.",
+      "status": {
+        "PENDING": "بانتظار الدفع",
+        "PROCESSING": "قيد المعالجة",
+        "PAID": "مدفوع",
+        "FAILED": "فشل الدفع",
+        "CANCELLED": "أُلغي الدفع",
+        "PARTIALLY_REFUNDED": "مسترد جزئيًا",
+        "REFUNDED": "مسترد",
+        "none": "غير مدفوع إلكترونيًا"
+      },
+      "noAttempt": "لم يبدأ العميل الدفع بعد.",
+      "dueBy": "يجب الدفع قبل {date}. تُلغى الطلبات غير المدفوعة تلقائيًا وتعود منتجاتها إلى المخزون.",
+      "overdue": "انتهت مهلة الدفع في {date}. سيُلغى الطلب تلقائيًا.",
+      "paidOn": "دُفع في {date}",
+      "amount": "المبلغ",
+      "received": "المستلم",
+      "refunded": "المسترد",
+      "method": "طريقة الدفع",
+      "card": "{brand} •••• {last4}",
+      "wallets": {
+        "apple_pay": "Apple Pay",
+        "google_pay": "Google Pay",
+        "link": "Link",
+        "samsung_pay": "Samsung Pay"
+      },
+      "reference": "دفعة Stripe",
+      "charge": "عملية Stripe",
+      "stripeStatus": "حالة Stripe",
+      "failure": "رُفضت آخر محاولة: {reason}",
+      "testMode": "وضع الاختبار",
+      "viewInStripe": "فتح في Stripe",
+      "refresh": "تحديث من Stripe",
+      "refreshed": "تم تحديث الدفعة من Stripe.",
+      "attempt": "المحاولة {number}",
+      "refund": "استرداد",
+      "refundTitle": "استرداد الطلب #{number}",
+      "refundBody": "يعيد Stripe المبلغ إلى وسيلة الدفع الأصلية للعميل. يمكن استرداد ما يصل إلى {amount}.",
+      "refundAmount": "المبلغ المراد استرداده",
+      "refundAll": "استرداد المبلغ كاملًا",
+      "refundReason": "السبب",
+      "reasons": {
+        "requested_by_customer": "بطلب من العميل",
+        "duplicate": "دفعة مكررة",
+        "fraudulent": "احتيالية",
+        "expired_uncaptured_charge": "انتهاء التفويض"
+      },
+      "refundNote": "ملاحظة داخلية",
+      "refundNoteHint": "تظهر للمسؤولين فقط (تُحفظ مع الاسترداد في Stripe).",
+      "refundFullNote": "الاسترداد الكامل يجعل حالة الطلب «مسترد»، وإن لم يُشحن بعد تعود منتجاته إلى المخزون.",
+      "refundSubmit": "استرداد {amount}",
+      "refundSent": "أُرسل استرداد بقيمة {amount} إلى Stripe.",
+      "refunds": "المبالغ المستردة",
+      "refundStatus": {
+        "PENDING": "قيد الانتظار",
+        "REQUIRES_ACTION": "يتطلب إجراء",
+        "SUCCEEDED": "تم الاسترداد",
+        "FAILED": "فشل",
+        "CANCELLED": "أُلغي"
+      },
+      "refundBy": "بواسطة {name}",
+      "refundFromStripe": "من Stripe أو تلقائيًا",
+      "history": "سجل المعاملات",
+      "noHistory": "لا يوجد نشاط دفع بعد.",
+      "events": {
+        "payment_intent.succeeded": "نجح الدفع",
+        "payment_intent.payment_failed": "فشل الدفع",
+        "payment_intent.processing": "الدفع قيد المعالجة",
+        "payment_intent.canceled": "أُلغي الدفع",
+        "payment_intent.requires_action": "طُلب التحقق (3D Secure)",
+        "charge.refunded": "تم استرداد العملية",
+        "charge.refund.updated": "تم تحديث الاسترداد",
+        "refund.created": "أُنشئ استرداد",
+        "refund.updated": "تم تحديث الاسترداد",
+        "refund.failed": "فشل الاسترداد"
+      },
+      "eventOutcome": {
+        "applied": "طُبّق",
+        "ignored": "تم تجاهله",
+        "failed": "فشل — سيعيد Stripe المحاولة"
+      },
+      "errors": {
+        "forbidden": "ليست لديك صلاحية للقيام بذلك.",
+        "notFound": "هذه الدفعة لم تعد موجودة.",
+        "notConfigured": "لم يتم إعداد Stripe على الخادم (STRIPE_SECRET_KEY و SUPABASE_SERVICE_ROLE_KEY).",
+        "notRefundable": "لا يمكن استرداد هذه الدفعة.",
+        "amountInvalid": "أدخل مبلغًا أكبر من صفر، دون منازل عشرية أكثر مما تستخدمه العملة.",
+        "amountTooLarge": "هذا أكثر مما يمكن استرداده.",
+        "reasonInvalid": "اختر سببًا.",
+        "domainInvalid": "أدخل اسم نطاق عامًا، مثل shop.example.com.",
+        "conflict": "غيّر شخص آخر هذه الإعدادات. تُعرض الآن أحدث القيم.",
+        "stripe": "رفض Stripe الطلب: {detail}",
+        "unexpected": "حدث خطأ ما. يرجى المحاولة مرة أخرى."
+      },
+      "timeline": {
+        "started": "بدء دفع بقيمة {amount}",
+        "declined": "رُفض الدفع",
+        "paid": "استلام دفعة بقيمة {amount}",
+        "cancelled": "أُلغي الدفع",
+        "refund": "استرداد بقيمة {amount} · {status}",
+        "webhook": "Webhook من Stripe: {event} · {outcome}"
+      }
     },
     "emptyTitle": "لا توجد طلبات بعد",
     "emptyBody": "تظهر هنا الطلبات المقدّمة من المتجر.",
@@ -1384,7 +1487,14 @@
       "deliveryMethod": "طريقة التوصيل",
       "freeDelivery": "تم تطبيق التوصيل المجاني (عادةً {amount})",
       "noDeliveryMethod": "طُلب قبل وجود طرق التوصيل",
-      "rateBasis": "{type} · الشحنة {weight} كغ"
+      "rateBasis": "{type} · الشحنة {weight} كغ",
+      "cancelBodyOnline": "تُلغى دفعته في Stripe أولًا فلا يمكن للعميل دفعه بعد ذلك، وتعود منتجاته إلى المخزون. لا يمكن التراجع عن ذلك.",
+      "awaitingPayment": "بانتظار دفع العميل. يُؤكَّد الطلب تلقائيًا بعد الدفع.",
+      "paidCancelNote": "تم دفع هذا الطلب: استرده (الدفع) بدلًا من إلغائه.",
+      "cancelRefund": "إلغاء واسترداد",
+      "cancelRefundTitle": "إلغاء الطلب #{number} واسترداد المبلغ؟",
+      "cancelRefundBody": "يُسترد مبلغ العميل بالكامل عبر Stripe (دون تكرار ما تم استرداده مسبقًا)، وتصبح حالة الطلب «مسترد» وتعود منتجاته إلى المخزون. لا يمكن التراجع عن ذلك.",
+      "cancelRefundDone": "تم إلغاء الطلب #{number} وإرسال الاسترداد إلى Stripe."
     },
     "errors": {
       "forbidden": "ليست لديك صلاحية لتنفيذ ذلك.",
@@ -1392,8 +1502,14 @@
       "invalidTransition": "تغيير الحالة هذا غير مسموح.",
       "conflict": "تم تغيير هذا الطلب من قبل شخص آخر. تُعرض الآن أحدث حالة.",
       "network": "تعذّر الاتصال بالخادم. تحقّق من اتصالك وحاول مرة أخرى.",
-      "unexpected": "حدث خطأ ما. يُرجى المحاولة مرة أخرى."
-    }
+      "unexpected": "حدث خطأ ما. يُرجى المحاولة مرة أخرى.",
+      "paymentRequired": "لم يُدفع هذا الطلب بعد. يتقدم بعد نجاح الدفع.",
+      "paymentCaptured": "تم دفع هذا الطلب. استرده بدلًا من إلغائه.",
+      "paymentsNotConfigured": "لم يتم إعداد Stripe على الخادم.",
+      "stripe": "تعذّر على Stripe إلغاء الدفعة. يرجى المحاولة مرة أخرى."
+    },
+    "paymentFilter": "الدفع",
+    "allPayments": "كل حالات الدفع"
   },
   "customers": {
     "title": "العملاء",
@@ -1824,5 +1940,79 @@
       "upToNotHigher": "يجب أن تكون أكبر من بداية الشريحة."
     },
     "fromAmount": "ابتداءً من {amount}"
+  },
+  "payments": {
+    "title": "المدفوعات",
+    "subtitle": "الدفع الإلكتروني بالبطاقة و Apple Pay عبر Stripe.",
+    "missingTitle": "لم يتم إعداد المدفوعات بعد",
+    "missingBody": "طبّق ترحيل قاعدة البيانات 044 (supabase/migrations) لتفعيل الدفع الإلكتروني.",
+    "connection": {
+      "title": "الاتصال بـ Stripe",
+      "mode": {
+        "live": "الوضع الفعلي",
+        "test": "وضع الاختبار",
+        "unknown": "نوع مفتاح غير معروف"
+      },
+      "secretKey": "المفتاح السري (STRIPE_SECRET_KEY)",
+      "webhookSecret": "سر توقيع Webhook ‏(STRIPE_WEBHOOK_SECRET)",
+      "cronSecret": "سر مهمة انتهاء المهلة (CRON_SECRET)",
+      "set": "مُعدّ",
+      "notSet": "غير مُعدّ",
+      "keysNote": "تُقرأ المفاتيح من بيئة الخادم ولا تُعرض هنا أبدًا.",
+      "webhookUrl": "عنوان Webhook",
+      "webhookHint": "أضف هذا العنوان في لوحة Stripe ← Developers ← Webhooks مع الأحداث المذكورة في README.",
+      "account": "الحساب",
+      "country": "الدولة",
+      "charges": "الدفع بالبطاقات",
+      "chargesEnabled": "مفعّل",
+      "chargesDisabled": "غير مفعّل بعد — أكمل تفعيل الحساب في Stripe.",
+      "verifiedOn": "تم التحقق {date}",
+      "notVerified": "لم يتم التحقق بعد",
+      "verify": "التحقق من حساب Stripe",
+      "verified": "تم التحقق من حساب Stripe.",
+      "liveMismatch": "تم التحقق من الحساب المخزن بوضع مفتاح مختلف. تحقق منه مرة أخرى."
+    },
+    "settings": {
+      "title": "الدفع عند الطلب",
+      "enable": "استقبال المدفوعات إلكترونيًا",
+      "enableHint": "يدفع العملاء بالبطاقة أو Apple Pay عند تقديم الطلب. عند الإيقاف تُقدَّم الطلبات دون دفع إلكتروني كما في السابق.",
+      "currencies": "العملات التي يمكن للعملاء الدفع بها",
+      "currenciesHint": "تُعرض فقط العملات التي يدعمها حساب Stripe. يُمنع الطلب بأي عملة أخرى أثناء تفعيل الدفع الإلكتروني.",
+      "notSupported": "لا يدعمها حساب Stripe هذا",
+      "inactive": "غير مبيعة في المتجر",
+      "decimalsMismatch": "المتجر يستخدم {store} منازل عشرية و Stripe ‏{stripe}",
+      "threeDecimalNote": "تُحصَّل مبالغ KWD و BHD و OMR حتى الفلس / البيسة. بعض شبكات البطاقات تقبل فقط مبالغ تنتهي بصفر، لذا سعّر هذه العملات بخطوات 0.010.",
+      "verifyFirst": "تحقق من حساب Stripe أولًا لمعرفة العملات التي يدعمها.",
+      "window": "مهلة الدفع (بالدقائق)",
+      "windowHint": "المدة التي يحتفظ فيها الطلب غير المدفوع بمنتجاته (15–1440). بعدها يُلغى وتعود إلى المخزون.",
+      "save": "حفظ",
+      "saved": "تم حفظ إعدادات الدفع.",
+      "errors": {
+        "currencyUnsupported": "لا يدعم Stripe العملة {codes} لهذا الحساب.",
+        "currencyInactive": "العملة {codes} غير مبيعة في المتجر (العملات).",
+        "currencyDecimals": "{codes}: المنازل العشرية في المتجر لا تطابق Stripe. صحّحها في العملات أولًا.",
+        "currenciesRequired": "اختر عملة واحدة على الأقل.",
+        "windowInvalid": "أدخل عددًا صحيحًا من الدقائق بين 15 و 1440.",
+        "notVerified": "تحقق من حساب Stripe قبل تفعيل المدفوعات.",
+        "chargesDisabled": "لا يمكن لحساب Stripe هذا استقبال المدفوعات بعد.",
+        "webhookMissing": "اضبط STRIPE_WEBHOOK_SECRET على الخادم أولًا: بدون Webhooks لا تُؤكَّد المدفوعات أبدًا."
+      }
+    },
+    "applePay": {
+      "title": "Apple Pay",
+      "body": "يظهر Apple Pay عند الدفع في Safari وأجهزة Apple بعد تسجيل نطاق المتجر وتفعيله هنا. يتولى Stripe تحقق Apple من التاجر؛ لا حاجة لاستضافة أي ملف. سجّل كل نطاق يستخدمه العملاء (مثل example.com و www.example.com).",
+      "requirements": "مطلوب أيضًا: HTTPS، وتفعيل Apple Pay في لوحة Stripe ← Settings ← Payment methods، وجهاز للعميل فيه بطاقة في Apple Wallet.",
+      "domain": "النطاق",
+      "register": "تسجيل النطاق",
+      "registered": "تم تسجيل النطاق لدى Stripe.",
+      "validate": "تحقق مرة أخرى",
+      "validated": "أعاد Stripe التحقق من النطاق.",
+      "active": "نشط",
+      "inactive": "غير نشط",
+      "disabled": "معطّل",
+      "none": "لا توجد نطاقات مسجلة بعد.",
+      "testModeNote": "النطاقات المسجلة في الوضع الفعلي متاحة أيضًا في وضع الاختبار.",
+      "unavailable": "تعذّر الوصول إلى Stripe: {detail}"
+    }
   }
 }
