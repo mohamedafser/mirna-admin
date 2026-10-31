@@ -7,6 +7,7 @@ import { activeSection, navEntries, sectionHref, type AdminSection } from "@/con
 import { useI18n } from "@/lib/i18n/client";
 import { isSidebarCollapsed } from "@/lib/sidebar";
 import { cn } from "@/lib/utils/cn";
+import { NewOrdersBadge } from "./new-orders-badge";
 
 /**
  * Sidebar / drawer navigation. The active item is derived from the URL, so
@@ -51,6 +52,7 @@ export function NavLinks({
             <span className="flex-1 whitespace-nowrap sidebar-collapsed:sr-only">
               {messages.nav[key]}
             </span>
+            {key === "orders" && <NewOrdersBadge />}
             {!available && (
               <span
                 aria-hidden

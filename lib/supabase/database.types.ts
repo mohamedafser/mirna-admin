@@ -625,8 +625,276 @@ export type Database = {
           },
         ];
       };
+      payments: {
+        Row: {
+          id: string;
+          order_id: string;
+          provider: string;
+          stripe_payment_intent_id: string;
+          status: Database["public"]["Enums"]["payment_status"];
+          amount: number;
+          amount_minor: number;
+          currency_code: string;
+          amount_received_minor: number;
+          amount_refunded_minor: number;
+          stripe_status: string | null;
+          stripe_charge_id: string | null;
+          payment_method_type: string | null;
+          wallet: string | null;
+          card_brand: string | null;
+          card_last4: string | null;
+          failure_code: string | null;
+          failure_message: string | null;
+          livemode: boolean;
+          paid_at: string | null;
+          failed_at: string | null;
+          canceled_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          order_id: string;
+          provider?: string;
+          stripe_payment_intent_id: string;
+          status?: Database["public"]["Enums"]["payment_status"];
+          amount: number;
+          amount_minor: number;
+          currency_code: string;
+          amount_received_minor?: number;
+          amount_refunded_minor?: number;
+          stripe_status?: string | null;
+          stripe_charge_id?: string | null;
+          payment_method_type?: string | null;
+          wallet?: string | null;
+          card_brand?: string | null;
+          card_last4?: string | null;
+          failure_code?: string | null;
+          failure_message?: string | null;
+          livemode?: boolean;
+          paid_at?: string | null;
+          failed_at?: string | null;
+          canceled_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          order_id?: string;
+          provider?: string;
+          stripe_payment_intent_id?: string;
+          status?: Database["public"]["Enums"]["payment_status"];
+          amount?: number;
+          amount_minor?: number;
+          currency_code?: string;
+          amount_received_minor?: number;
+          amount_refunded_minor?: number;
+          stripe_status?: string | null;
+          stripe_charge_id?: string | null;
+          payment_method_type?: string | null;
+          wallet?: string | null;
+          card_brand?: string | null;
+          card_last4?: string | null;
+          failure_code?: string | null;
+          failure_message?: string | null;
+          livemode?: boolean;
+          paid_at?: string | null;
+          failed_at?: string | null;
+          canceled_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "payments_order_fkey";
+            columns: ["order_id", "currency_code"];
+            isOneToOne: false;
+            referencedRelation: "orders";
+            referencedColumns: ["id", "currency_code"];
+          },
+        ];
+      };
+      refunds: {
+        Row: {
+          id: string;
+          payment_id: string;
+          order_id: string;
+          stripe_refund_id: string;
+          status: Database["public"]["Enums"]["refund_status"];
+          amount: number;
+          amount_minor: number;
+          currency_code: string;
+          reason: string | null;
+          note: string | null;
+          failure_reason: string | null;
+          requested_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          payment_id: string;
+          order_id: string;
+          stripe_refund_id: string;
+          status?: Database["public"]["Enums"]["refund_status"];
+          amount: number;
+          amount_minor: number;
+          currency_code: string;
+          reason?: string | null;
+          note?: string | null;
+          failure_reason?: string | null;
+          requested_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          payment_id?: string;
+          order_id?: string;
+          stripe_refund_id?: string;
+          status?: Database["public"]["Enums"]["refund_status"];
+          amount?: number;
+          amount_minor?: number;
+          currency_code?: string;
+          reason?: string | null;
+          note?: string | null;
+          failure_reason?: string | null;
+          requested_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "refunds_payment_id_fkey";
+            columns: ["payment_id"];
+            isOneToOne: false;
+            referencedRelation: "payments";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "refunds_order_fkey";
+            columns: ["order_id", "currency_code"];
+            isOneToOne: false;
+            referencedRelation: "orders";
+            referencedColumns: ["id", "currency_code"];
+          },
+          {
+            foreignKeyName: "refunds_requested_by_fkey";
+            columns: ["requested_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      payment_events: {
+        Row: {
+          stripe_event_id: string;
+          event_type: string;
+          stripe_object_id: string | null;
+          payment_intent_id: string | null;
+          order_id: string | null;
+          livemode: boolean;
+          stripe_created_at: string;
+          received_at: string;
+          processed_at: string | null;
+          outcome: string | null;
+          detail: string | null;
+        };
+        Insert: {
+          stripe_event_id: string;
+          event_type: string;
+          stripe_object_id?: string | null;
+          payment_intent_id?: string | null;
+          order_id?: string | null;
+          livemode: boolean;
+          stripe_created_at: string;
+          received_at?: string;
+          processed_at?: string | null;
+          outcome?: string | null;
+          detail?: string | null;
+        };
+        Update: {
+          stripe_event_id?: string;
+          event_type?: string;
+          stripe_object_id?: string | null;
+          payment_intent_id?: string | null;
+          order_id?: string | null;
+          livemode?: boolean;
+          stripe_created_at?: string;
+          received_at?: string;
+          processed_at?: string | null;
+          outcome?: string | null;
+          detail?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "payment_events_order_id_fkey";
+            columns: ["order_id"];
+            isOneToOne: false;
+            referencedRelation: "orders";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      payment_settings: {
+        Row: {
+          id: boolean;
+          stripe_enabled: boolean;
+          enabled_currencies: string[];
+          payment_window_minutes: number;
+          stripe_account_id: string | null;
+          stripe_account_country: string | null;
+          stripe_livemode: boolean | null;
+          stripe_charges_enabled: boolean;
+          stripe_supported_currencies: string[];
+          stripe_verified_at: string | null;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          id?: boolean;
+          stripe_enabled?: boolean;
+          enabled_currencies?: string[];
+          payment_window_minutes?: number;
+          stripe_account_id?: string | null;
+          stripe_account_country?: string | null;
+          stripe_livemode?: boolean | null;
+          stripe_charges_enabled?: boolean;
+          stripe_supported_currencies?: string[];
+          stripe_verified_at?: string | null;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          id?: boolean;
+          stripe_enabled?: boolean;
+          enabled_currencies?: string[];
+          payment_window_minutes?: number;
+          stripe_account_id?: string | null;
+          stripe_account_country?: string | null;
+          stripe_livemode?: boolean | null;
+          stripe_charges_enabled?: boolean;
+          stripe_supported_currencies?: string[];
+          stripe_verified_at?: string | null;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "payment_settings_updated_by_fkey";
+            columns: ["updated_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       orders: {
         Row: {
+          payment_status: Database["public"]["Enums"]["payment_status"] | null;
+          payment_due_at: string | null;
+          paid_at: string | null;
           stock_deducted: boolean;
           billing_address_snapshot: Json | null;
           checkout_key: string | null;
@@ -648,6 +916,9 @@ export type Database = {
           user_id: string | null;
         };
         Insert: {
+          payment_status?: Database["public"]["Enums"]["payment_status"] | null;
+          payment_due_at?: string | null;
+          paid_at?: string | null;
           stock_deducted?: boolean;
           billing_address_snapshot?: Json | null;
           checkout_key?: string | null;
@@ -669,6 +940,9 @@ export type Database = {
           user_id?: string | null;
         };
         Update: {
+          payment_status?: Database["public"]["Enums"]["payment_status"] | null;
+          payment_due_at?: string | null;
+          paid_at?: string | null;
           stock_deducted?: boolean;
           billing_address_snapshot?: Json | null;
           checkout_key?: string | null;
@@ -1413,6 +1687,42 @@ export type Database = {
       };
     };
     Functions: {
+      checkout_payment_options: {
+        Args: Record<PropertyKey, never>;
+        Returns: { enabled: boolean; currencies: string[]; payment_window_minutes: number }[];
+      };
+      claim_payment_event: {
+        Args: {
+          p_event_id: string;
+          p_event_type: string;
+          p_object_id: string | null;
+          p_livemode: boolean;
+          p_created_at: string;
+        };
+        Returns: boolean;
+      };
+      finish_payment_event: {
+        Args: {
+          p_event_id: string;
+          p_outcome: string;
+          p_payment_intent_id: string | null;
+          p_order_id: string | null;
+          p_detail: string | null;
+        };
+        Returns: undefined;
+      };
+      sync_stripe_payment: {
+        Args: { p_state: Json };
+        Returns: Json;
+      };
+      cancel_unpaid_order: {
+        Args: { p_order_id: string };
+        Returns: string;
+      };
+      expired_unpaid_orders: {
+        Args: { p_limit?: number };
+        Returns: { order_id: string; order_number: number; payment_intent_ids: string[] }[];
+      };
       adjust_stock_batch: {
         Args: {
           p_type: Database["public"]["Enums"]["inventory_adjustment_type"];
@@ -1580,6 +1890,15 @@ export type Database = {
       };
     };
     Enums: {
+      payment_status:
+        | "PENDING"
+        | "PROCESSING"
+        | "PAID"
+        | "FAILED"
+        | "CANCELLED"
+        | "PARTIALLY_REFUNDED"
+        | "REFUNDED";
+      refund_status: "PENDING" | "REQUIRES_ACTION" | "SUCCEEDED" | "FAILED" | "CANCELLED";
       inventory_adjustment_reason:
         | "stock_received"
         | "stock_count_correction"

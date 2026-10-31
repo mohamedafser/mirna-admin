@@ -1,4 +1,4 @@
-import { ArrowLeft, CreditCard, Info } from "lucide-react";
+import { ArrowLeft, Info } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -7,9 +7,10 @@ import { Suspense } from "react";
 import { Panel } from "@/components/catalogue/panel";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { StatusActions } from "@/components/orders/status-actions";
+import { OrderPaymentPanel } from "@/components/payments/order-payment-panel";
+import { PaymentStatusBadge } from "@/components/payments/payment-status-badge";
 import { deliveryDays } from "@/components/shipping/format";
 import { gramsToKg } from "@/lib/shipping/rules";
-import { Badge } from "@/components/ui/badge";
 import { buttonClassName } from "@/components/ui/button";
 import { PageSkeleton } from "@/components/ui/states";
 import type { Locale } from "@/config/i18n";
@@ -20,6 +21,7 @@ import { format } from "@/lib/i18n/messages";
 import { getLocale, getMessages } from "@/lib/i18n/server";
 import { getStoreRegion } from "@/lib/settings/queries";
 import { getOrder, type AddressSnapshot } from "@/lib/orders/queries";
+import { getOrderPayments } from "@/lib/payments/queries";
 
 export async function generateMetadata(): Promise<Metadata> {
   const messages = await getMessages();
@@ -73,6 +75,8 @@ async function OrderDetailView({ params }: Pick<PageProps<"/[lang]/admin/orders/
   if (!isUuid(id)) notFound();
   const order = await getOrder(id);
   if (!order) notFound();
+  const payments =
+    order.payment_status === null ? null : await getOrderPayments(order.id, order.currency_code);
 
   const t = messages.orders;
   const d = t.detail;
@@ -123,6 +127,9 @@ async function OrderDetailView({ params }: Pick<PageProps<"/[lang]/admin/orders/
               {format(d.title, { number: order.order_number })}
             </h1>
             <OrderStatusBadge status={order.status} label={t.status[order.status]} />
+            {order.payment_status && (
+              <PaymentStatusBadge status={order.payment_status} labels={t.payment.status} />
+            )}
           </div>
           <p className="mt-0.5 text-sm text-muted-foreground">
             {format(d.placedOn, { date: date(order.created_at) })}
@@ -315,17 +322,18 @@ async function OrderDetailView({ params }: Pick<PageProps<"/[lang]/admin/orders/
               orderId={order.id}
               orderNumber={order.order_number}
               status={order.status}
+              paymentStatus={order.payment_status}
             />
             <p className="mt-4 text-xs text-muted-foreground">{d.workflow}</p>
           </Panel>
 
-          <Panel title={t.payment.title}>
-            <Badge>
-              <CreditCard aria-hidden />
-              {t.payment.notPaidOnline}
-            </Badge>
-            <p className="mt-3 text-xs text-muted-foreground">{t.payment.note}</p>
-          </Panel>
+          <OrderPaymentPanel
+            order={order}
+            data={payments}
+            locale={locale}
+            messages={messages}
+            timeZone={timeZone}
+          />
         </div>
       </div>
     </div>

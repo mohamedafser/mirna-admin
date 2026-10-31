@@ -1,6 +1,7 @@
 import {
   Boxes,
   Coins,
+  CreditCard,
   FolderTree,
   GalleryHorizontalEnd,
   History,
@@ -43,6 +44,7 @@ export type AdminSectionKey =
   | "banner"
   | "currencies"
   | "shipping"
+  | "payments"
   | "settings"
   | "profile";
 
@@ -157,6 +159,14 @@ export const adminSections: readonly AdminSection[] = [
     key: "shipping",
     segment: "shipping",
     icon: Truck,
+    inNav: true,
+    available: true,
+    group: "store",
+  },
+  {
+    key: "payments",
+    segment: "payments",
+    icon: CreditCard,
     inNav: true,
     available: true,
     group: "store",
