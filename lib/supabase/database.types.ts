@@ -1737,6 +1737,52 @@ export type Database = {
       };
     };
     Functions: {
+      auth_otp_claim_reset: {
+        Args: { p_token_hash: string };
+        Returns: string | null;
+      };
+      auth_otp_find_account: {
+        Args: { p_email: string };
+        Returns: {
+          user_id: string;
+          email_confirmed: boolean;
+          role: string | null;
+          is_active: boolean;
+        }[];
+      };
+      auth_otp_finish_reset: {
+        Args: { p_token_hash: string; p_user_id: string };
+        Returns: boolean;
+      };
+      auth_otp_issue: {
+        Args: {
+          p_email: string;
+          p_purpose: string;
+          p_code_hash: string;
+          p_binding_hash: string;
+          p_ip_hash: string | null;
+          p_resend: boolean;
+        };
+        Returns: Json;
+      };
+      auth_otp_release_reset: {
+        Args: { p_token_hash: string };
+        Returns: undefined;
+      };
+      auth_otp_set_pending_name: {
+        Args: { p_user_id: string; p_full_name: string };
+        Returns: undefined;
+      };
+      auth_otp_verify: {
+        Args: {
+          p_email: string;
+          p_purpose: string;
+          p_code_hash: string;
+          p_binding_hash: string;
+          p_reset_token_hash: string;
+        };
+        Returns: Json;
+      };
       checkout_payment_options: {
         Args: Record<PropertyKey, never>;
         Returns: { enabled: boolean; currencies: string[]; payment_window_minutes: number }[];
