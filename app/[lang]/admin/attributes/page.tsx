@@ -196,6 +196,7 @@ async function Attributes({
                     <td className="px-4 py-2.5">
                       <Link
                         href={`${basePath}/${attribute.id}`}
+                        data-row-link
                         className="line-clamp-1 font-medium hover:underline"
                       >
                         <bdi>{attribute.name}</bdi>
@@ -227,6 +228,7 @@ async function Attributes({
                 <div className="min-w-0 flex-1">
                   <Link
                     href={`${basePath}/${attribute.id}`}
+                    data-row-link
                     className="line-clamp-1 text-sm font-medium hover:underline"
                   >
                     <bdi>{attribute.name}</bdi>

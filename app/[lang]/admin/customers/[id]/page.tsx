@@ -212,6 +212,7 @@ async function CustomerDetailView({
                         <Link
                           href={orderHref(order)}
                           aria-label={`${o.view} ${orderNumber(order)}`}
+                          data-row-link
                           className="font-medium tabular-nums hover:underline"
                         >
                           {orderNumber(order)}

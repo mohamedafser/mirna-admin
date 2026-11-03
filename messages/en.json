@@ -137,8 +137,7 @@
     "shipping": "Shipping",
     "stockUpdate": "Update stock",
     "stockMovements": "Stock movements",
-    "payments": "Payments",
-    "newOrders": "{count} new order(s) waiting"
+    "payments": "Payments"
   },
   "admin": {
     "welcomeTitle": "Welcome to Mirna Admin",
@@ -1517,11 +1516,9 @@
     "searchLabel": "Search customers",
     "searchPlaceholder": "Name, email or phone",
     "unnamed": "Unnamed customer",
-    "orderCount": "{count} order(s)",
     "columns": {
       "customer": "Customer",
       "phone": "Phone",
-      "orders": "Orders",
       "lastOrder": "Last order",
       "joined": "Joined",
       "status": "Status"

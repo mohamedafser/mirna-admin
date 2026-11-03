@@ -7,6 +7,7 @@ import { Brand } from "./brand";
 import { Breadcrumbs } from "./breadcrumbs";
 import { MobileNav } from "./mobile-nav";
 import { NavLinks } from "./nav-links";
+import { RowLinks } from "./row-links";
 import { SidebarToggle } from "./sidebar-toggle";
 
 /**
@@ -41,6 +42,7 @@ export async function AdminShell({
 
   return (
     <div className="flex min-h-dvh px-safe">
+      <RowLinks />
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:start-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-card focus:px-3 focus:py-2 focus:shadow-elevated"

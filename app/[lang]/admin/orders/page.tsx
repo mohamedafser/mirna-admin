@@ -169,6 +169,7 @@ async function Orders({ searchParams }: Pick<PageProps<"/[lang]/admin/orders">, 
                     <td className="px-4 py-2.5">
                       <Link
                         href={href(order)}
+                        data-row-link
                         aria-label={`${t.view} ${number(order)}`}
                         className="font-medium tabular-nums hover:underline"
                       >

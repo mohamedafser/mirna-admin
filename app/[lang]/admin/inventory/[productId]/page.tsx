@@ -76,7 +76,11 @@ async function InventoryItem({
   // Sales and cancellations (migration 043) link to their order instead.
   const admin = (row: AdjustmentRow) =>
     row.order_id && row.order ? (
-      <Link href={`/${locale}/admin/orders/${row.order_id}`} className="hover:underline">
+      <Link
+        data-row-link
+        href={`/${locale}/admin/orders/${row.order_id}`}
+        className="hover:underline"
+      >
         {format(h.order, { number: row.order.order_number })}
       </Link>
     ) : (

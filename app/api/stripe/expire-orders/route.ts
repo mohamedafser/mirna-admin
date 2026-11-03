@@ -1,4 +1,5 @@
-import { timingSafeEqual } from "node:crypto";
+import { isCronRequest } from "@/lib/auth/cron";
+import { scheduleOrderEmails } from "@/lib/notifications/delivery";
 import { cancelUnpaidOrder } from "@/lib/payments/orders";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -15,19 +16,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * cancelled order. Safe to call concurrently and repeatedly.
  */
 
-function authorized(request: Request): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
-  const given = Buffer.from(request.headers.get("authorization") ?? "");
-  const expected = Buffer.from(`Bearer ${secret}`);
-  return given.length === expected.length && timingSafeEqual(given, expected);
-}
-
 const json = (body: object, status = 200) =>
   Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 
 export async function GET(request: Request) {
-  if (!authorized(request)) return json({ ok: false, error: "unauthorized" }, 401);
+  if (!isCronRequest(request)) return json({ ok: false, error: "unauthorized" }, 401);
 
   const admin = createAdminClient();
   if (!admin) return json({ ok: false, error: "not_configured" }, 503);
@@ -53,5 +46,6 @@ export async function GET(request: Request) {
       );
     }
   }
+  if (results.cancelled) scheduleOrderEmails();
   return json({ ok: true, checked: orders.length, results });
 }

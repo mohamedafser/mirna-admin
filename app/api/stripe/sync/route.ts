@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { scheduleOrderEmails } from "@/lib/notifications/delivery";
 import { getStripe, isStripeError } from "@/lib/payments/stripe";
 import { PaymentsNotConfiguredError, syncPaymentIntent } from "@/lib/payments/sync";
 
@@ -44,6 +45,7 @@ export async function POST(request: Request) {
 
   try {
     const result = await syncPaymentIntent(id);
+    if (result.outcome === "applied") scheduleOrderEmails();
     return json({
       ok: true,
       outcome: result.outcome,

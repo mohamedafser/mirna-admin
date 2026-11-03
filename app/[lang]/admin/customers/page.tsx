@@ -15,7 +15,6 @@ import { EmptyState, PageSkeleton } from "@/components/ui/states";
 import { requireAdmin } from "@/lib/auth/dal";
 import { listCustomers, parseCustomerParams, type CustomerRow } from "@/lib/customers/queries";
 import { formatDateTime } from "@/lib/format";
-import { format } from "@/lib/i18n/messages";
 import { getLocale, getMessages } from "@/lib/i18n/server";
 import { getStoreRegion } from "@/lib/settings/queries";
 
@@ -60,7 +59,6 @@ async function Customers({
   const href = (customer: CustomerRow) => `/${locale}/admin/customers/${customer.id}`;
   const date = (value: string) => formatDateTime(value, locale, { dateStyle: "medium" }, timeZone);
   const name = (customer: CustomerRow) => customer.full_name || customer.email || t.unnamed;
-  const orders = (customer: CustomerRow) => format(t.orderCount, { count: customer.order_count });
   const status = (active: boolean) => (
     <StatusBadge active={active} activeLabel={common.active} inactiveLabel={common.inactive} />
   );
@@ -118,9 +116,6 @@ async function Customers({
                   <th scope="col" className="hidden px-4 py-3 text-start font-medium lg:table-cell">
                     {t.columns.phone}
                   </th>
-                  <th scope="col" className="px-4 py-3 text-end font-medium">
-                    {t.columns.orders}
-                  </th>
                   <th scope="col" className="hidden px-4 py-3 text-start font-medium xl:table-cell">
                     {t.columns.lastOrder}
                   </th>
@@ -139,7 +134,11 @@ async function Customers({
                 {result.rows.map((customer) => (
                   <tr key={customer.id} className="transition-colors hover:bg-accent/60">
                     <td className="max-w-72 px-4 py-2">
-                      <Link href={href(customer)} className="group flex items-center gap-3">
+                      <Link
+                        data-row-link
+                        href={href(customer)}
+                        className="group flex items-center gap-3"
+                      >
                         <Avatar name={customer.full_name} email={customer.email} />
                         <span className="min-w-0">
                           <span className="line-clamp-1 font-medium group-hover:underline">
@@ -155,9 +154,6 @@ async function Customers({
                     </td>
                     <td className="hidden px-4 py-2 whitespace-nowrap text-muted-foreground lg:table-cell">
                       {ltr(customer.phone)}
-                    </td>
-                    <td className="px-4 py-2 text-end font-medium tabular-nums">
-                      {customer.order_count.toLocaleString(locale)}
                     </td>
                     <td className="hidden px-4 py-2 whitespace-nowrap text-muted-foreground xl:table-cell">
                       {customer.last_order_at ? date(customer.last_order_at) : "—"}
@@ -210,7 +206,6 @@ async function Customers({
                     )}
                     <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                       {status(customer.is_active)}
-                      <span>{orders(customer)}</span>
                     </span>
                   </span>
                   <ChevronRight

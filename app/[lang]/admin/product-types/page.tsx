@@ -175,6 +175,7 @@ async function ProductTypes({
                     <td className="px-4 py-2.5">
                       <Link
                         href={`${basePath}/${type.id}`}
+                        data-row-link
                         className="line-clamp-1 font-medium hover:underline"
                       >
                         <bdi>{type.name}</bdi>
@@ -205,6 +206,7 @@ async function ProductTypes({
                 <div className="min-w-0 flex-1">
                   <Link
                     href={`${basePath}/${type.id}`}
+                    data-row-link
                     className="line-clamp-1 text-sm font-medium hover:underline"
                   >
                     <bdi>{type.name}</bdi>
