@@ -112,16 +112,19 @@ npm run dev                     # http://localhost:3005 → redirects to /en/adm
 
 ### Environment variables
 
-| Variable                               | Where                             | Notes                                                                                          |
-| -------------------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_SUPABASE_URL`             | Supabase → Project Settings → API | Project URL                                                                                    |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | same                              | `sb_publishable_…` key (the legacy `anon` key also works). Public by design; RLS protects data |
-| `NEXT_PUBLIC_REGION`                   | optional                          | Market key from `config/region.ts` (default `AE`)                                              |
-| `STRIPE_SECRET_KEY`                    | Stripe → Developers → API keys    | Server-only. Webhooks, refunds, cancelling unpaid payments, Payments page                      |
-| `STRIPE_WEBHOOK_SECRET`                | Stripe → Developers → Webhooks    | Server-only. Signing secret of `/api/stripe/webhook`                                           |
-| `CRON_SECRET`                          | `openssl rand -hex 32`            | Server-only. Bearer token for `/api/stripe/expire-orders`                                      |
-| `PAYMENTS_SYNC_SECRET`                 | `openssl rand -hex 32`            | Server-only. Same value as the storefront's; authorises `/api/stripe/sync`                     |
-| `STOREFRONT_URL`                       | optional                          | Storefront URL, suggested as the Apple Pay domain                                              |
+| Variable                               | Where                             | Notes                                                                                                      |
+| -------------------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`             | Supabase → Project Settings → API | Project URL                                                                                                |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | same                              | `sb_publishable_…` key (the legacy `anon` key also works). Public by design; RLS protects data             |
+| `NEXT_PUBLIC_REGION`                   | optional                          | Market key from `config/region.ts` (default `AE`)                                                          |
+| `STRIPE_SECRET_KEY`                    | Stripe → Developers → API keys    | Server-only. Webhooks, refunds, cancelling unpaid payments, Payments page                                  |
+| `STRIPE_WEBHOOK_SECRET`                | Stripe → Developers → Webhooks    | Server-only. Signing secret of `/api/stripe/webhook`                                                       |
+| `CRON_SECRET`                          | `openssl rand -hex 32`            | Server-only. Bearer token for `/api/stripe/expire-orders` and `/api/orders/notifications`                  |
+| `PAYMENTS_SYNC_SECRET`                 | `openssl rand -hex 32`            | Server-only. Same value as the storefront's; authorises `/api/stripe/sync`                                 |
+| `SMTP_HOST`, `SMTP_PORT`               | Your email provider               | Server-only. Order status emails. Port 465 = implicit TLS, others upgrade with STARTTLS |
+| `SMTP_USER`, `SMTP_PASSWORD`           | Your email provider               | Server-only. Never add a `NEXT_PUBLIC_` prefix                                                             |
+| `SMTP_FROM_EMAIL`, `SMTP_FROM_NAME`    | optional                          | Sender. The address defaults to `SMTP_USER`, the name to `Mirna`                                           |
+| `STOREFRONT_URL`                       | optional                          | Storefront URL: suggested Apple Pay domain, and the "View your order" button in order emails               |
 
 `.env*` files are git-ignored (except `.env.example`). **Never** expose `SUPABASE_SERVICE_ROLE_KEY`: it must never get a `NEXT_PUBLIC_` prefix or be imported by client code. Phase 1 does not use it.
 
@@ -187,6 +190,7 @@ All schema changes are migrations; never edit production tables by hand.
 | 041 | `…41_stock_batch.sql`                        | `adjust_stock_batch()`: one adjustment type, reason and note for up to 200 products/variants in one transaction, each line through `adjust_inventory()` / `adjust_variant_inventory()` (same rules and history); a failing line rolls back all and is reported as `inventory:item:<index>:<code>`                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | 042 | `…42_variant_stock_pool.sql`                 | A product's stock is the pool its variants share: product-level adjustments allowed again for products with variants; variants can't hold more than the pool (`inventory:exceeds_pool`) and the pool can't drop below what they hold (`inventory:below_allocated`), both under a row lock; first variants keep the pool (giving it to one variant is optional); `inventory_overview` gains `allocated_quantity` / `unallocated_quantity`; `product_availability()` / `product_stock_limit()` count only what purchasable variants hold                                                                                                                                                                                          |
 | 043 | `…43_purchases_update_stock.sql`             | `place_order()` locks the cart's stock rows and deducts every line (variant and its product pool, or a simple product), logged as `sold` with `inventory_adjustments.order_id`; cancelling an order (`orders.stock_deducted`) puts the units back once (`order_cancelled`)                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| 045 | `…45_order_status_notifications.sql`         | `order_notifications` outbox filled by triggers on `orders`, one row per order and status; `claim_order_notifications()`; service role only                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 Design notes:
 
@@ -454,7 +458,24 @@ Sidebar → **Inventory**: Stock levels, Update stock, Stock movements.
 - **Details:** the stored order only: `order_items` name, SKU, quantity, unit price and line total, and `orders` subtotal, discount, delivery, tax and total. The customer and shipping address come from `shipping_address_snapshot`, plus the account's current state (deleted or inactive). **Nothing is re-priced from current products.** Money columns are read as text.
 - **Status:** buttons offer only the allowed next steps. Cancelling asks for confirmation. `updateOrderStatus` re-checks the admin and the workflow (`lib/orders/rules.ts`), then updates with the admin's own session (`eq("status", from)`, so a stale page gets "changed by someone else" instead of overwriting). The database rejects invalid moves anyway (migration 018). `updated_at` is set by the existing trigger. Admins can only change `status`: totals and items have no update grant.
 - **Payment:** orders paid online show their payment status (list column + filter, detail badge and panel); see [Payments (Stripe)](#payments-stripe). Orders placed before migration 044, or while online payment is off, show "Not paid online".
-- **Not included:** shipping integration, coupons, notifications.
+- **Not included:** shipping integration, coupons.
+
+### Order status emails
+
+Customers get an email when an order is placed and at every status change: Confirmed, Processing, Shipped, Delivered, Cancelled and Refunded (a paid order that's cancelled ends as Refunded).
+
+| Piece                              | Role                                                                                                                      |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Migration 045                      | Triggers on `orders` add one `order_notifications` row per order and status; `UNIQUE (order_id, status)` stops duplicates |
+| `lib/notifications/delivery.ts`    | Claims waiting rows, reads the customer's address from Supabase Auth (`orders.user_id`), sends, records the result        |
+| `lib/notifications/order-email.ts` | The responsive HTML and plain-text email, in English and Arabic (the store's default language)                            |
+| `lib/email/smtp.ts`                | The SMTP transport (`SMTP_*`, server-only)                                                                                |
+| `GET /api/orders/notifications`    | Scheduled every minute with `Authorization: Bearer $CRON_SECRET`: storefront orders and retries                           |
+
+- **Triggers:** the database records every status change, whichever code path made it (storefront, admins, Stripe, the expiry job). Status changes made in this app send straight after the response through `after()`; the scheduled route covers the rest, so an order placed on the storefront is emailed within a minute.
+- **Failures:** the order is already saved, so mail problems never affect it. Failed sends are logged with an error code and retried after 1, 5, 15 and 60 minutes, then marked `FAILED`. Emails more than 3 days old are marked `SKIPPED` rather than sent, so customers don't get a burst of outdated updates after an outage. Orders whose account was deleted are also `SKIPPED`.
+- **Duplicates:** a worker that dies between sending and recording the result sends that one email again after 5 minutes; it keeps the same `Message-ID`.
+- **Checking delivery:** `select status, state, attempts, last_error from order_notifications where order_id = '…';` in the SQL editor. Only the service role can read this table.
 
 ## Payments (Stripe)
 

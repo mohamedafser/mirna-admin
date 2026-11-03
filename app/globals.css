@@ -319,6 +319,32 @@ dialog.drawer[open]::backdrop {
     text-rendering: optimizeLegibility;
   }
 
+  /* Rows that open on click (components/layout/row-links.tsx). */
+  :is(tr, li):has(a[data-row-link]) {
+    cursor: pointer;
+  }
+  :is(tr, li):has(a[data-row-link]) :is(details, dialog, [data-row-ignore]) {
+    cursor: auto;
+  }
+
+  /* Everything clickable shows a pointer; browsers default controls to an arrow. */
+  button,
+  summary,
+  select,
+  [role="button"],
+  [role="switch"],
+  [role="menuitem"],
+  input[type="checkbox"],
+  input[type="radio"],
+  label:has(input[type="checkbox"], input[type="radio"]) {
+    cursor: pointer;
+  }
+  :is(button, select, input):disabled,
+  [aria-disabled="true"],
+  label:has(input:disabled) {
+    cursor: not-allowed;
+  }
+
   /* Selected text in the brand colours. */
   ::selection {
     background-color: var(--color-primary);

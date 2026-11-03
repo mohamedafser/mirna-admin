@@ -67,7 +67,10 @@ export function ShippingCountryList({
             const href = `/${locale}/admin/shipping/${country.countryCode}`;
             const blocked = country.isActive && !isDeliverable(country);
             return (
-              <tr key={country.countryCode} className="align-middle">
+              <tr
+                key={country.countryCode}
+                className="align-middle transition-colors hover:bg-accent/60"
+              >
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
                     <span
@@ -77,7 +80,7 @@ export function ShippingCountryList({
                       {country.countryCode}
                     </span>
                     <div className="min-w-0">
-                      <Link href={href} className="font-medium hover:underline">
+                      <Link data-row-link href={href} className="font-medium hover:underline">
                         {name}
                       </Link>
                       <p className="text-xs text-muted-foreground" dir="ltr">

@@ -1,3 +1,4 @@
+import { scheduleOrderEmails } from "@/lib/notifications/delivery";
 import { handleStripeEvent } from "@/lib/payments/webhook";
 import { getStripe, isStripeError } from "@/lib/payments/stripe";
 
@@ -43,6 +44,7 @@ export async function POST(request: Request) {
   try {
     const outcome = await handleStripeEvent(event);
     if (outcome === "failed") return json({ received: false, error: "processing_failed" }, 500);
+    if (outcome === "applied") scheduleOrderEmails();
     return json({ received: true, outcome });
   } catch (error) {
     console.error(

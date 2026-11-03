@@ -250,8 +250,15 @@ async function Inventory({
   // -------------------------------------------------------------------------
   // Shared pieces
   // -------------------------------------------------------------------------
-  const iconLink = (href: string, label: string, title: string, icon: ReactNode) => (
+  const iconLink = (
+    href: string,
+    label: string,
+    title: string,
+    icon: ReactNode,
+    rowLink = false,
+  ) => (
     <Link
+      data-row-link={rowLink || undefined}
       href={href}
       aria-label={label}
       title={title}
@@ -307,6 +314,7 @@ async function Inventory({
         format(t.history.linkNamed, { name: `${row.name} · ${variantLabel(variant)}` }),
         t.history.link,
         <History aria-hidden />,
+        true,
       )}
     </>
   );
@@ -351,7 +359,11 @@ async function Inventory({
         />
       </Link>
       <span className="grid min-w-0 gap-0.5">
-        <Link href={historyHref(row)} className="line-clamp-1 font-medium hover:underline">
+        <Link
+          data-row-link
+          href={historyHref(row)}
+          className="line-clamp-1 font-medium hover:underline"
+        >
           <bdi>{row.name}</bdi>
         </Link>
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
@@ -704,6 +716,7 @@ async function Inventory({
                   <div className="flex flex-1 flex-col gap-1 p-3">
                     <Link
                       href={historyHref(row)}
+                      data-row-link
                       className="line-clamp-2 text-sm leading-snug font-medium group-hover:underline"
                     >
                       <bdi>{row.name}</bdi>

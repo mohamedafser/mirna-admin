@@ -418,6 +418,7 @@ async function Products({
                             </p>
                             <Link
                               href={href(product.id)}
+                              data-row-link
                               className="line-clamp-2 text-sm leading-snug font-medium hover:underline"
                             >
                               <bdi>{product.name}</bdi>
@@ -489,7 +490,7 @@ async function Products({
                               attention && "bg-warning/[0.04]",
                             )}
                           >
-                            <td className="w-0 py-3 ps-4 pe-1 align-middle">
+                            <td data-row-ignore className="w-0 py-3 ps-4 pe-1 align-middle">
                               <SelectProduct id={product.id} name={product.name} />
                             </td>
                             <td className="px-3 py-3">
@@ -505,6 +506,7 @@ async function Products({
                                 <div className="grid min-w-0 gap-0.5">
                                   <Link
                                     href={href(product.id)}
+                                    data-row-link
                                     className="line-clamp-1 font-medium hover:underline"
                                   >
                                     <bdi>{product.name}</bdi>
@@ -585,6 +587,7 @@ async function Products({
                           <div className="grid min-w-0 flex-1 gap-1">
                             <Link
                               href={href(product.id)}
+                              data-row-link
                               className="line-clamp-1 text-sm font-medium"
                             >
                               <bdi>{product.name}</bdi>

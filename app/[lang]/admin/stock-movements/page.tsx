@@ -87,7 +87,11 @@ async function Movements({
 
   const item = (row: MovementRow) => (
     <span className="grid min-w-0 gap-0.5">
-      <Link href={historyHref(row)} className="line-clamp-1 font-medium hover:underline">
+      <Link
+        data-row-link
+        href={historyHref(row)}
+        className="line-clamp-1 font-medium hover:underline"
+      >
         <bdi>{row.product?.name ?? h.productLevel}</bdi>
       </Link>
       <span className="font-mono text-xs text-muted-foreground" dir="ltr">

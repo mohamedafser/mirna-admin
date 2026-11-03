@@ -513,6 +513,7 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/[lang]/admin">, "sea
                         <span className="min-w-0 flex-1 truncate">
                           {product.product_id ? (
                             <Link
+                              data-row-link
                               href={`${basePath}/products/${product.product_id}`}
                               className="hover:underline"
                             >
@@ -557,6 +558,7 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/[lang]/admin">, "sea
                         <TriangleAlert aria-hidden className="size-4 shrink-0 text-warning" />
                       )}
                       <Link
+                        data-row-link
                         href={`${basePath}/inventory/${item.product_id}`}
                         className="min-w-0 flex-1 truncate hover:underline"
                       >

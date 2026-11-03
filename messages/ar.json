@@ -137,8 +137,7 @@
     "shipping": "الشحن",
     "stockUpdate": "تحديث المخزون",
     "stockMovements": "حركات المخزون",
-    "payments": "المدفوعات",
-    "newOrders": "{count} طلب جديد بانتظار المعالجة"
+    "payments": "المدفوعات"
   },
   "admin": {
     "welcomeTitle": "مرحبًا بك في لوحة إدارة ميرنا",
@@ -1517,11 +1516,9 @@
     "searchLabel": "البحث في العملاء",
     "searchPlaceholder": "الاسم أو البريد الإلكتروني أو الهاتف",
     "unnamed": "عميل بدون اسم",
-    "orderCount": "{count} طلب",
     "columns": {
       "customer": "العميل",
       "phone": "الهاتف",
-      "orders": "الطلبات",
       "lastOrder": "آخر طلب",
       "joined": "تاريخ الانضمام",
       "status": "الحالة"

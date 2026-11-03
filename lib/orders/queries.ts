@@ -217,22 +217,6 @@ export async function listOrders(
   return toPage(data as unknown as OrderListRow[], count ?? 0, params.page, ORDER_PAGE_SIZE);
 }
 
-/**
- * Orders waiting on the store (sidebar badge): not paid online and still
- * PENDING (to confirm), or CONFIRMED (to process; paid online orders are
- * confirmed automatically). Orders still waiting for the customer's online
- * payment aren't counted: there's nothing to do yet.
- */
-export async function countNewOrders(): Promise<number> {
-  const supabase = await createClient();
-  const { count, error } = await supabase
-    .from("orders")
-    .select("id", { count: "exact", head: true })
-    .or("status.eq.CONFIRMED,and(status.eq.PENDING,payment_status.is.null)");
-  if (error) fail("new orders count", error);
-  return count ?? 0;
-}
-
 /** One order with its items and account. Memoised per request. */
 export const getOrder = cache(async (id: string): Promise<OrderDetail | null> => {
   const supabase = await createClient();

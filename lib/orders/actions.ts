@@ -3,6 +3,7 @@
 import { refresh } from "next/cache";
 import { getAdminOrNull } from "@/lib/auth/dal";
 import { isUuid } from "@/lib/catalogue/validation";
+import { scheduleOrderEmails } from "@/lib/notifications/delivery";
 import { cancelUnpaidOrder } from "@/lib/payments/orders";
 import { isCaptured, isOpen, refundableMinor, type RefundStatus } from "@/lib/payments/rules";
 import { getStripe, isStripeError } from "@/lib/payments/stripe";
@@ -99,6 +100,7 @@ export async function updateOrderStatus(
       );
       return { ok: false, error: "unexpected" };
     }
+    scheduleOrderEmails();
     refresh();
     return { ok: true };
   }
@@ -123,6 +125,7 @@ export async function updateOrderStatus(
   // Missing, or no longer in `from` (changed by someone else).
   if (!data) return { ok: false, error: "conflict" };
 
+  scheduleOrderEmails();
   refresh();
   return { ok: true };
 }
@@ -211,6 +214,7 @@ export async function cancelAndRefundOrder(
     return { ok: false, error: "stripe" };
   }
 
+  scheduleOrderEmails();
   refresh();
   return { ok: true };
 }

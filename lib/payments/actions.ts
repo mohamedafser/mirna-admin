@@ -4,6 +4,7 @@ import { refresh } from "next/cache";
 import { getAdminOrNull } from "@/lib/auth/dal";
 import { isUuid } from "@/lib/catalogue/validation";
 import { parseMinor } from "@/lib/currency/money";
+import { scheduleOrderEmails } from "@/lib/notifications/delivery";
 import { createClient } from "@/lib/supabase/server";
 import {
   decimalsMatchStripe,
@@ -133,6 +134,7 @@ export async function refundPayment(input: {
     return stripeFailure("refund", refundError);
   }
 
+  scheduleOrderEmails();
   refresh();
   return { ok: true };
 }
@@ -155,6 +157,7 @@ export async function refreshPayment(paymentId: unknown): Promise<PaymentActionR
   } catch (syncError) {
     return stripeFailure("refresh", syncError);
   }
+  scheduleOrderEmails();
   refresh();
   return { ok: true };
 }

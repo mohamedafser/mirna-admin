@@ -787,6 +787,56 @@ export type Database = {
           },
         ];
       };
+      order_notifications: {
+        Row: {
+          id: string;
+          order_id: string;
+          status: Database["public"]["Enums"]["order_status"];
+          state: string;
+          attempts: number;
+          next_attempt_at: string;
+          locked_at: string | null;
+          sent_at: string | null;
+          last_error: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          order_id: string;
+          status: Database["public"]["Enums"]["order_status"];
+          state?: string;
+          attempts?: number;
+          next_attempt_at?: string;
+          locked_at?: string | null;
+          sent_at?: string | null;
+          last_error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          order_id?: string;
+          status?: Database["public"]["Enums"]["order_status"];
+          state?: string;
+          attempts?: number;
+          next_attempt_at?: string;
+          locked_at?: string | null;
+          sent_at?: string | null;
+          last_error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "order_notifications_order_id_fkey";
+            columns: ["order_id"];
+            isOneToOne: false;
+            referencedRelation: "orders";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       payment_events: {
         Row: {
           stripe_event_id: string;
@@ -1718,6 +1768,16 @@ export type Database = {
       cancel_unpaid_order: {
         Args: { p_order_id: string };
         Returns: string;
+      };
+      claim_order_notifications: {
+        Args: { p_limit?: number };
+        Returns: {
+          id: string;
+          order_id: string;
+          status: Database["public"]["Enums"]["order_status"];
+          attempts: number;
+          created_at: string;
+        }[];
       };
       expired_unpaid_orders: {
         Args: { p_limit?: number };
