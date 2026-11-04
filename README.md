@@ -495,6 +495,8 @@ Storefront sign-up and password reset use 6-digit emailed codes. They run here b
 
 **Browser binding.** A code only works in the browser that requested it, and only that browser can resend it. Registering an unverified email again replaces its password, so without this someone could register a victim's address with their own password and have the victim activate it with a code. It also means nobody else can use up the attempts on a code.
 
+Google sign-in (storefront `/auth/callback`) needs no code: Supabase verifies the email through Google. Migration 047 adds `profiles.avatar_url`, which customers can't set, and `sync_google_profile()`, which copies the picture and a missing name from the Google identity. Keep **"Allow new users to sign up" on** in Supabase, because turning it off also blocks new customers from signing in with Google.
+
 Only active customers receive codes. Staff accounts don't, and an existing verified account is never changed by a sign-up attempt.
 
 ## Payments (Stripe)
